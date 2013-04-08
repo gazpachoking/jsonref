@@ -27,7 +27,10 @@ else:
     import urlparse
     from urllib import unquote
 
-import requests
+try:
+    import requests
+except ImportError:
+    requests = None
 
 
 class _URIDict(MutableMapping):
@@ -73,30 +76,30 @@ class Dereferencer(object):
         else:
             document = self.remote(uri)
 
-        return self.get_fragment(document, fragment)
+        return self.resolve_pointer(document, fragment)
 
     def remote(self, uri):
         result = requests.get(uri).json()
         self.store[uri] = result
         return result
 
-    def get_fragment(self, document, fragment):
+    def resolve_pointer(self, document, pointer):
         """
-        Resolve a json pointer ``fragment`` within the referenced ``document``.
+        Resolve a json pointer ``pointer`` within the referenced ``document``.
 
         :argument document: the referrant document
-        :argument str fragment: a json pointer URI fragment to resolve within it
+        :argument str pointer: a json pointer URI fragment to resolve within it
 
         """
 
-        parts = unquote(fragment.lstrip("/")).split("/") if fragment else []
+        parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
 
         for part in parts:
             part = part.replace("~1", "/").replace("~0", "~")
 
             if part not in document:
                 raise LookupError(
-                    "Unresolvable JSON pointer: %r" % fragment
+                    "Unresolvable JSON pointer: %r" % pointer
                 )
 
             document = document[part]
