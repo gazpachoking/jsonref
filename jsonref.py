@@ -114,14 +114,23 @@ class Dereferencer(object):
 dereferencer = Dereferencer()
 
 
-def _as_ref_object(dct):
-    if "$ref" in dct:
-        return LazyProxy(partial(dereferencer, dct["$ref"]))
-    return dct
+def lazy_creator(base_uri):
+    def _as_ref_object(dct):
+        if "$ref" in dct:
+            full_uri = urlparse.urljoin(base_uri, dct["$ref"])
+            return LazyProxy(partial(dereferencer, full_uri))
+        return dct
+    return _as_ref_object
 
 
-load = partial(json.load, object_hook=_as_ref_object)
-loads = partial(json.loads, object_hook=_as_ref_object)
+#load = partial(json.load, object_hook=_as_ref_object)
+def loads(json_str, base_uri=None):
+    if not base_uri:
+        # TODO: this is a temp hack
+        base_uri = "http://localhost/"
+    dereferencer.store[base_uri] = json.loads(json_str)
+    return json.loads(json_str, object_hook=lazy_creator(base_uri))
+
 
 
 def loadp(obj):

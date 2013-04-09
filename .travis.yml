@@ -9,4 +9,5 @@ install:
   - python setup.py -q install
 script:
   - python -m unittest tests
-  - python -m doctest README.rst
+  # Docs are in python 3 format
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then python -m doctest README.rst; fi
