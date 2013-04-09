@@ -108,7 +108,7 @@ class Dereferencer(object):
 dereferencer = Dereferencer()
 
 
-def load(json_file, *args, base_uri=None, **kwargs):
+def load(json_file, *args, **kwargs):
     """
     Drop in replacement for :func:`json.load`, where JSON references are
     proxied to their referent data.
@@ -117,10 +117,12 @@ def load(json_file, *args, base_uri=None, **kwargs):
     :param base_uri: URI to resolve relative references against
 
     """
-    return loadp(json.load(json_file), base_uri=base_uri)
+
+    base_uri = kwargs.pop('base_uri', None)
+    return loadp(json.load(json_file, *args, **kwargs), base_uri=base_uri)
 
 
-def loads(json_str, base_uri=None):
+def loads(json_str, *args, **kwargs):
     """
     Drop in replacement for :func:`json.loads`, where JSON references are
     proxied to their referent data.
@@ -129,7 +131,9 @@ def loads(json_str, base_uri=None):
     :param base_uri: URI to resolve relative references against
 
     """
-    return loadp(json.loads(json_str), base_uri=base_uri)
+
+    base_uri = kwargs.pop('base_uri', None)
+    return loadp(json.loads(json_str, *args, **kwargs), base_uri=base_uri)
 
 
 def loaduri(uri):
@@ -140,6 +144,7 @@ def loaduri(uri):
     :param uri: URI to fetch the JSON from
 
     """
+
     return loadp(dereferencer(uri), base_uri=uri)
 
 
