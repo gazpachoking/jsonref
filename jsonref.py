@@ -1,4 +1,3 @@
-from functools import partial
 import sys
 
 try:
@@ -23,6 +22,7 @@ PY3 = sys.version_info[0] >= 3
 if PY3:
     from urllib import parse as urlparse
     from urllib.parse import unquote
+    unicode = str
 else:
     import urlparse
     from urllib import unquote
@@ -35,6 +35,29 @@ except ImportError:
 from lazyproxy import LazyProxy
 
 __version__ = "0.1-dev"
+
+
+def resolve_pointer(document, pointer):
+    """
+    Resolve a json pointer ``pointer`` within the referenced ``document``.
+
+    :argument document: the referent document
+    :argument str pointer: a json pointer URI fragment to resolve within it
+
+    """
+
+    parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
+
+    for part in parts:
+        part = part.replace("~1", "/").replace("~0", "~")
+
+        if part not in document:
+            raise LookupError(
+                "Unresolvable JSON pointer: %r" % pointer
+            )
+
+        document = document[part]
+    return document
 
 
 class _URIDict(MutableMapping):
@@ -73,79 +96,86 @@ class Dereferencer(object):
     def __init__(self, store=()):
         self.store = _URIDict(store)
 
-    def __call__(self, full_uri):
-        uri, fragment = urlparse.urldefrag(full_uri)
+    def __call__(self, uri):
         if uri in self.store:
-            document = self.store[uri]
+            return self.store[uri]
         else:
-            document = self.remote(uri)
-
-        return self.resolve_pointer(document, fragment)
-
-    def remote(self, uri):
-        result = requests.get(uri).json()
-        self.store[uri] = result
-        return result
-
-    def resolve_pointer(self, document, pointer):
-        """
-        Resolve a json pointer ``pointer`` within the referenced ``document``.
-
-        :argument document: the referrant document
-        :argument str pointer: a json pointer URI fragment to resolve within it
-
-        """
-
-        parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
-
-        for part in parts:
-            part = part.replace("~1", "/").replace("~0", "~")
-
-            if part not in document:
-                raise LookupError(
-                    "Unresolvable JSON pointer: %r" % pointer
-                )
-
-            document = document[part]
-
-        return document
+            result = requests.get(uri).json()
+            self.store[uri] = result
+            return result
 
 
 dereferencer = Dereferencer()
 
 
-def lazy_creator(base_uri):
-    def _as_ref_object(dct):
-        if "$ref" in dct:
-            full_uri = urlparse.urljoin(base_uri, dct["$ref"])
-            return LazyProxy(partial(dereferencer, full_uri))
-        return dct
-    return _as_ref_object
+def load(json_file, *args, base_uri=None, **kwargs):
+    """
+    Drop in replacement for :func:`json.load`, where JSON references are
+    proxied to their referent data.
+
+    :param json_file: The JSON file to load
+    :param base_uri: URI to resolve relative references against
+
+    """
+    return loadp(json.load(json_file), base_uri=base_uri)
 
 
-#load = partial(json.load, object_hook=_as_ref_object)
 def loads(json_str, base_uri=None):
-    if not base_uri:
-        # TODO: this is a temp hack
-        base_uri = "http://localhost/"
-    dereferencer.store[base_uri] = json.loads(json_str)
-    return json.loads(json_str, object_hook=lazy_creator(base_uri))
-
-
-
-def loadp(obj):
     """
-    Loads a python object (e.g. already parsed json) with json reference support.
+    Drop in replacement for :func:`json.loads`, where JSON references are
+    proxied to their referent data.
+
+    :param json_str: The JSON string to load
+    :param base_uri: URI to resolve relative references against
 
     """
-    try:
-        return LazyProxy(partial(dereferencer, obj["$ref"]))
-    except (TypeError, KeyError):
-        pass
-    if isinstance(obj, dict):
-        return dict((k, loadp(obj[k])) for k in obj)
-    elif isinstance(obj, list):
-        return [loadp(i) for i in obj]
-    return obj
+    return loadp(json.loads(json_str), base_uri=base_uri)
 
+
+def loaduri(uri):
+    """
+    Load JSON data from ``uri`` with JSON references proxied to their referent
+    data.
+
+    :param uri: URI to fetch the JSON from
+
+    """
+    return loadp(dereferencer(uri), base_uri=uri)
+
+
+def loadp(obj, base_uri=None):
+    """
+    Replaces all JSON reference objects within a python object with proxies
+    to the data pointed to by the reference.
+
+    :param obj: Python data structure consisting of JSON primitive types
+    :param base_uri: URI to resolve relative references against
+
+    """
+
+    def inner(inner_obj):
+        try:
+            if isinstance(inner_obj["$ref"], (str, unicode)):
+                full_uri = urlparse.urljoin(base_uri, inner_obj["$ref"])
+                uri, fragment = urlparse.urldefrag(full_uri)
+                if not uri or uri == base_uri:
+                    return LazyProxy(
+                        lambda: inner(resolve_pointer(obj, fragment))
+                    )
+                else:
+                    return LazyProxy(
+                        lambda: loadp(
+                            resolve_pointer(dereferencer(uri), fragment),
+                            base_uri=uri
+                        )
+                    )
+        except (TypeError, KeyError):
+            pass
+        if isinstance(inner_obj, dict):
+            return dict((k, inner(inner_obj[k])) for k in inner_obj)
+        elif isinstance(inner_obj, list):
+            return [inner(i) for i in inner_obj]
+        return inner_obj
+
+    return inner(obj)
 

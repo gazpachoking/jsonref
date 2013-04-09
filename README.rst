@@ -10,6 +10,7 @@ jsonref
 for Python (supporting 2.6+ including Python 3).
 
 .. code-block:: python
+
     >>> from pprint import pprint
     >>> import jsonref
 

@@ -1,6 +1,7 @@
 import sys
 import unittest
 
+from jsonref import loadp
 from lazyproxy import LazyProxy
 
 PY3 = sys.version_info[0] >= 3
@@ -9,6 +10,14 @@ if PY3:
     long = int
     def cmp(a, b):
         return (a > b) - (a < b)
+
+
+class TestRefLoading(unittest.TestCase):
+
+    def test_local_ref(self):
+        data = {"a": 5, "b": {"$ref": "#/a"}}
+        self.assertEqual(loadp(data)["b"], data["a"])
+
 
 class ProxyTestMixin:
 
