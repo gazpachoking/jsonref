@@ -1,0 +1,12 @@
+language: python
+python:
+  - "pypy"
+  - "2.6"
+  - "2.7"
+  - "3.2"
+  - "3.3"
+install:
+  - python setup.py -q install
+script:
+  - python -m unittest tests.py
+  - python -m doctest README.rst
