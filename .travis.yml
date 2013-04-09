@@ -8,5 +8,5 @@ python:
 install:
   - python setup.py -q install
 script:
-  - python -m unittest tests.py
+  - python -m unittest tests
   - python -m doctest README.rst
