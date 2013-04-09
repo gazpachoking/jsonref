@@ -1,20 +1,29 @@
+import sys
 import unittest
+
 from lazyproxy import LazyProxy
+
+PY3 = sys.version_info[0] >= 3
+
+if PY3:
+    long = int
+    def cmp(a, b):
+        return (a > b) - (a < b)
 
 class ProxyTestMixin:
 
     def checkInteger(self, v):
         p = self.proxied(v)
-        self.assertEqual(p|010101, v|010101)
-        self.assertEqual(p&010101, v&010101)
-        self.assertEqual(p^010101, v^010101)
+        self.assertEqual(p|0b010101, v|0b010101)
+        self.assertEqual(p&0b010101, v&0b010101)
+        self.assertEqual(p^0b010101, v^0b010101)
         self.assertEqual(~p, ~v)
         self.assertEqual(p<<3, v<<3)
         self.assertEqual(p>>2, v>>2)
 
-        self.assertEqual(010101|p, 010101|v)
-        self.assertEqual(010101&p, 010101&v)
-        self.assertEqual(010101^p, 010101^v)
+        self.assertEqual(0b010101|p, 0b010101|v)
+        self.assertEqual(0b010101&p, 0b010101&v)
+        self.assertEqual(0b010101^p, 0b010101^v)
         self.assertEqual(3<<p, 3<<v)
         self.assertEqual(2>>p, 2>>v)
         for f in hex, oct:
@@ -108,10 +117,8 @@ class ProxyTestMixin:
             f += 2.25
 
     def testLists(self):
-        from UserList import UserList
         for d in [1,2], [3,42,59], [99,23,55]:
             self.checkList(d)
-            self.checkList(UserList(d))
 
 
 class InPlaceMixin(ProxyTestMixin):
@@ -119,10 +126,10 @@ class InPlaceMixin(ProxyTestMixin):
     def checkInteger(self, vv):
         mk = lambda: (self.proxied(vv), vv)
         p,v = mk()
-        p|=010101; v|=010101
+        p|=0b010101; v|=0b010101
         self.assertEqual(p.__subject__, v)
-        p,v = mk(); p&=010101; v&=010101; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p^=010101; v^=010101; self.assertEqual(p.__subject__, v)
+        p,v = mk(); p&=0b010101; v&=0b010101; self.assertEqual(p.__subject__, v)
+        p,v = mk(); p^=0b010101; v^=0b010101; self.assertEqual(p.__subject__, v)
         p,v = mk(); p<<=3; v<<=3; self.assertEqual(p.__subject__, v)
         p,v = mk(); p>>=3; v>>=3; self.assertEqual(p.__subject__, v)
         ProxyTestMixin.checkInteger(self, vv)

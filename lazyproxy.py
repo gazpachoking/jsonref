@@ -12,7 +12,7 @@ PY3 = sys.version_info[0] >= 3
 
 OPERATORS = [
     # Unary
-    "pos", "neg", "abs", "invert",
+    "pos", "neg", "abs", "invert", "index",
     # Comparison
     "eq", "ne", "lt", "gt", "le", "ge",
     # Container
@@ -28,8 +28,7 @@ INPLACE_OPERATORS = [
 ]
 # These functions all have magic methods named after them
 MAGIC_FUNCS = [
-    divmod, round, repr, str, hash, len, abs, complex, bool, int, float, iter,
-    oct, hex
+    divmod, round, repr, str, hash, len, abs, complex, bool, int, float, iter
 ]
 
 if PY3:
@@ -38,7 +37,7 @@ else:
     OPERATORS += ["getslice", "setslice", "delslice"]
     REFLECTED_OPERATORS += ["div"]
     INPLACE_OPERATORS += ["idiv"]
-    MAGIC_FUNCS += [long, unicode, cmp, coerce]
+    MAGIC_FUNCS += [long, unicode, cmp, coerce, oct, hex]
 
 
 class LazyProxy(object):
