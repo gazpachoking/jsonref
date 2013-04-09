@@ -40,7 +40,7 @@ else:
 
 class LazyProxy(object):
     """Proxy for a lazily-obtained object, that is cached on first use"""
-    __slots__ = ("__subject__", "__callback__", "__cache__")
+    __slots__ = ("__callback__", "__cache__")
 
     def __init__(self, func):
         set_callback(self,func)
@@ -53,7 +53,9 @@ class LazyProxy(object):
             set_cache(self, get_callback(self)())
             return get_cache(self)
 
-    __subject__.setter = set_cache
+    @__subject__.setter
+    def __subject__(self, value):
+        set_cache(self, value)
 
     def __getattribute__(self, attr):
         subject = object.__getattribute__(self, '__subject__')
