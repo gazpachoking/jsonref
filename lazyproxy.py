@@ -12,7 +12,7 @@ PY3 = sys.version_info[0] >= 3
 
 OPERATORS = [
     # Unary
-    "pos", "neg", "abs", "invert", "index",
+    "pos", "neg", "abs", "invert",
     # Comparison
     "eq", "ne", "lt", "gt", "le", "ge",
     # Container
@@ -123,5 +123,9 @@ for op in INPLACE_OPERATORS:
     )
 
 # One offs
-LazyProxy.__nonzero__ = LazyProxy.__bool__
+# Only non-operator that needs a reflected version
 LazyProxy.__rdivmod__ = proxy_func(divmod, arg_pos=1)
+# For python 2.6
+LazyProxy.__nonzero__ = LazyProxy.__bool__
+# pypy is missing __index__ in operator module
+LazyProxy.__index__ = proxy_func(operator.index)

@@ -8,7 +8,7 @@ with open("README.rst") as readme:
 
 
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 1 - Planning",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.3",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
-    ]
+]
 
 
 setup(
@@ -36,4 +36,4 @@ setup(
     license="MIT",
     long_description=long_description,
     url="http://github.com/gazpachoking/jsonref",
-    )
+)
