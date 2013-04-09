@@ -1,4 +1,4 @@
-from functools import partial, wraps
+from functools import partial
 import sys
 
 try:
@@ -31,6 +31,10 @@ try:
     import requests
 except ImportError:
     requests = None
+
+from lazyproxy import LazyProxy
+
+__version__ = "0.1-dev"
 
 
 class _URIDict(MutableMapping):
@@ -69,7 +73,7 @@ class Dereferencer(object):
     def __init__(self, store=()):
         self.store = _URIDict(store)
 
-    def dereference(self, full_uri):
+    def __call__(self, full_uri):
         uri, fragment = urlparse.urldefrag(full_uri)
         if uri in self.store:
             document = self.store[uri]
@@ -107,46 +111,12 @@ class Dereferencer(object):
         return document
 
 
-
-
-def dereferencing(func):
-    """
-    Used as a decorator for `RefObject` methods.
-    Replaces the self argument with the dereferenced object.
-
-    """
-    @wraps(func)
-    def wrapper(refobj, *args, **kwargs):
-        if not refobj.dereferenced:
-            refobj.dereference()
-        return func(refobj.object, *args, **kwargs)
-    return wrapper
-
-
-class RefObject(object):
-    def __init__(self, ref, base_uri="", dereferencer=Dereferencer()):
-        self.ref = urlparse.urljoin(base_uri, ref)
-        self.dereferenced = False
-        self.object = None
-        self.dereferencer = dereferencer
-
-    def dereference(self):
-        # Do the dereferencing
-        print("dereferencing %s" % self.ref)
-        self.object = self.dereferencer.dereference(self.ref)
-        self.dereferenced = True
-
-    __repr__ = dereferencing(repr)
-    __str__ = dereferencing(str)
-    __iter__ = dereferencing(iter)
-    __bool__ = dereferencing(bool)
-    __getattr__ = dereferencing(getattr)
-
+dereferencer = Dereferencer()
 
 
 def _as_ref_object(dct):
-    if '$ref' in dct:
-        return RefObject(dct['$ref'])
+    if "$ref" in dct:
+        return LazyProxy(partial(dereferencer, dct["$ref"]))
     return dct
 
 
@@ -160,7 +130,7 @@ def loadp(obj):
 
     """
     try:
-        return RefObject(obj["$ref"])
+        return LazyProxy(partial(dereferencer, obj["$ref"]))
     except (TypeError, KeyError):
         pass
     if isinstance(obj, dict):

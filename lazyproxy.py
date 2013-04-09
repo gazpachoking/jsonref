@@ -13,16 +13,18 @@ PY3 = sys.version_info[0] >= 3
 OPERATORS = [
     # Unary
     "pos", "neg", "abs", "invert",
-    # Binary (other reflected ones are below)
-    "eq", "ne", "lt", "gt", "le", "ge", "and", "or", "xor", "lshift", "rshift",
+    # Comparison
+    "eq", "ne", "lt", "gt", "le", "ge",
     # Container
     "getitem", "setitem", "delitem", "contains",
-    # In-place
-    "iadd", "isub", "imul", "ifloordiv", "itruediv", "imod", "ipow", "ilshift",
-    "irshift", "iand", "ior", "ixor"
 ]
 REFLECTED_OPERATORS = [
-    "add", "sub", "mul", "floordiv", "truediv", "mod", "pow"
+    "add", "sub", "mul", "floordiv", "truediv", "mod", "pow", "and", "or",
+    "xor", "lshift", "rshift"
+]
+INPLACE_OPERATORS = [
+    "iadd", "isub", "imul", "ifloordiv", "itruediv", "imod", "ipow", "ilshift",
+    "irshift", "iand", "ior", "ixor"
 ]
 # These functions all have magic methods named after them
 MAGIC_FUNCS = [
@@ -33,8 +35,9 @@ MAGIC_FUNCS = [
 if PY3:
     MAGIC_FUNCS += [bytes]
 else:
-    OPERATORS += ["getslice", "setslice", "delslice", "idiv"]
+    OPERATORS += ["getslice", "setslice", "delslice"]
     REFLECTED_OPERATORS += ["div"]
+    INPLACE_OPERATORS += ["idiv"]
     MAGIC_FUNCS += [long, unicode, cmp, coerce]
 
 
@@ -85,20 +88,22 @@ get_cache = LazyProxy.__cache__.__get__
 set_cache = LazyProxy.__cache__.__set__
 
 
-def proxy_func(func, arg_pos=0):
+def proxy_func(func, arg_pos=0, inplace=False):
     @wraps(func)
     def proxied(p, *args, **kwargs):
-        subject = p.__subject__
         args = list(args)
-        args.insert(arg_pos, subject)
-        return func(*args, **kwargs)
+        args.insert(arg_pos, p.__subject__)
+        result = func(*args, **kwargs)
+        if inplace:
+            p.__subject__ = result
+            return p
+        else:
+            return result
     return proxied
 
 
 for func in MAGIC_FUNCS:
     setattr(LazyProxy, "__%s__" % func.__name__, proxy_func(func))
-# For python 2
-LazyProxy.__nonzero__ = LazyProxy.__bool__
 
 for op in OPERATORS + REFLECTED_OPERATORS:
     magic_meth = "__%s__" % op
@@ -110,3 +115,14 @@ for op in REFLECTED_OPERATORS:
         LazyProxy, "__r%s__" % op,
         proxy_func(getattr(operator, "__%s__" % op), arg_pos=1)
     )
+
+for op in INPLACE_OPERATORS:
+    magic_meth = "__%s__" % op
+    setattr(
+        LazyProxy, magic_meth,
+        proxy_func(getattr(operator, magic_meth), inplace=True)
+    )
+
+# One offs
+LazyProxy.__nonzero__ = LazyProxy.__bool__
+LazyProxy.__rdivmod__ = proxy_func(divmod, arg_pos=1)
