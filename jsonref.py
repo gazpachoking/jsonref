@@ -93,15 +93,17 @@ class _URIDict(MutableMapping):
 
 
 class Dereferencer(object):
-    def __init__(self, store=()):
+    def __init__(self, store=(), cache_results=True):
         self.store = _URIDict(store)
+        self.cache_results = cache_results
 
     def __call__(self, uri):
         if uri in self.store:
             return self.store[uri]
         else:
             result = requests.get(uri).json()
-            self.store[uri] = result
+            if self.cache_results:
+                self.store[uri] = result
             return result
 
 
