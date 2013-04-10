@@ -1,6 +1,8 @@
 import sys
 import unittest
 
+import mock
+
 from jsonref import loadp, loads
 from lazyproxy import LazyProxy
 
@@ -17,6 +19,16 @@ class TestRefLoading(unittest.TestCase):
     def test_local_ref(self):
         json = {"a": 5, "b": {"$ref": "#/a"}}
         self.assertEqual(loadp(json)["b"], json["a"])
+
+    def test_result_cached(self):
+        json = {"$ref": "foo"}
+        dereferencer = mock.Mock(return_value=42)
+        result = loadp(json, dereferencer=dereferencer)
+        # Do several things with result
+        result + 3
+        repr(result)
+        result *= 2
+        dereferencer.assert_called_once_with("foo")
 
     def test_custom_dereferencer(self):
         json = {"$ref": "foo"}
