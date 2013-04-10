@@ -1,3 +1,4 @@
+import json
 import sys
 
 try:
@@ -5,27 +6,17 @@ try:
 except ImportError:
     from collections.abc import MutableMapping
 
-try:
-    import simplejson as json
-except ImportError:
-    try:
-        import json
-    except ImportError:
-        try:
-            # Google Appengine offers simplejson via django
-            from django.utils import simplejson as json
-        except ImportError:
-            json = None
-
 PY3 = sys.version_info[0] >= 3
 
 if PY3:
     from urllib import parse as urlparse
     from urllib.parse import unquote
+    from urllib.request import urlopen
     unicode = str
 else:
     import urlparse
     from urllib import unquote
+    from urllib2 import urlopen
 
 try:
     import requests
@@ -101,11 +92,28 @@ class Dereferencer(object):
         if uri in self.store:
             return self.store[uri]
         else:
-            result = requests.get(uri).json()
+            result = self.get_remote_json(uri)
             if self.cache_results:
                 self.store[uri] = result
             return result
 
+    def get_remote_json(self, uri):
+        scheme = urlparse.urlsplit(uri).scheme
+
+        if (
+            scheme in ["http", "https"] and
+            requests and getattr(requests.Response, "json", None)
+        ):
+            # Prefer requests, it has better encoding detection
+            if callable(requests.Response.json):
+                result = requests.get(uri).json()
+            else:
+                result = requests.get(uri).json
+        else:
+            # Otherwise, pass off to urllib and assume utf-8
+            result = json.loads(urlopen(uri).read().decode("utf-8"))
+
+        return result
 
 dereferencer = Dereferencer()
 

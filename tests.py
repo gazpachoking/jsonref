@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 
@@ -21,9 +22,9 @@ class TestRefLoading(unittest.TestCase):
         self.assertEqual(loadp(json)["b"], json["a"])
 
     def test_custom_dereferencer(self):
-        json = {"$ref": "foo"}
+        data = {"$ref": "foo"}
         dereferencer = mock.Mock(return_value=42)
-        result = loadp(json, dereferencer=dereferencer)
+        result = loadp(data, dereferencer=dereferencer)
         # Dereferencing should not occur until we do something with result
         self.assertEqual(dereferencer.call_count, 0)
         # Make sure we got the right result
@@ -73,7 +74,7 @@ class TestDereferencer(unittest.TestCase):
             self.assertEqual(result, data)
         requests.get.assert_called_once_with("http://bar")
 
-    """def test_it_retrieves_unstored_refs_via_urlopen(self):
+    def test_it_retrieves_unstored_refs_via_urlopen(self):
         ref = "http://bar"
         data = {"baz" : 12}
 
@@ -84,7 +85,7 @@ class TestDereferencer(unittest.TestCase):
                 )
                 result = self.dereferencer(ref)
                 self.assertEqual(result, data)
-        urlopen.assert_called_once_with("http://bar")"""
+        urlopen.assert_called_once_with("http://bar")
 
     def test_cache_results_on(self):
         ref = "http://bar"
