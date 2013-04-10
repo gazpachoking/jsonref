@@ -3,7 +3,7 @@ import unittest
 
 import mock
 
-from jsonref import loadp, loads
+from jsonref import loadp, loads, Dereferencer
 from lazyproxy import LazyProxy
 
 PY3 = sys.version_info[0] >= 3
@@ -47,6 +47,66 @@ class TestRefLoading(unittest.TestCase):
         )
         self.assertEqual(result, None)
         dereferencer.assert_called_once_with("http://bar.com/foo")
+
+
+class TestDereferencer(unittest.TestCase):
+
+    base_uri = ""
+    stored_uri = "foo://stored"
+    stored_schema = {"stored" : "schema"}
+
+    def setUp(self):
+        self.store = {self.stored_uri : self.stored_schema}
+        self.dereferencer = Dereferencer(store=self.store)
+
+    def test_it_retrieves_stored_refs(self):
+        result = self.dereferencer(self.stored_uri)
+        self.assertIs(result, self.stored_schema)
+
+    def test_it_retrieves_unstored_refs_via_requests(self):
+        ref = "http://bar"
+        data = {"baz" : 12}
+
+        with mock.patch("jsonref.requests") as requests:
+            requests.get.return_value.json.return_value = data
+            result = self.dereferencer(ref)
+            self.assertEqual(result, data)
+        requests.get.assert_called_once_with("http://bar")
+
+    """def test_it_retrieves_unstored_refs_via_urlopen(self):
+        ref = "http://bar"
+        data = {"baz" : 12}
+
+        with mock.patch("jsonref.requests", None):
+            with mock.patch("jsonref.urlopen") as urlopen:
+                urlopen.return_value.read.return_value = (
+                    json.dumps(data).encode("utf8")
+                )
+                result = self.dereferencer(ref)
+                self.assertEqual(result, data)
+        urlopen.assert_called_once_with("http://bar")"""
+
+    def test_cache_results_on(self):
+        ref = "http://bar"
+        data = {"baz" : 12}
+
+        with mock.patch("jsonref.requests") as requests:
+            requests.get.return_value.json.return_value = data
+            dereferencer = Dereferencer(cache_results=True)
+            dereferencer(ref)
+            dereferencer(ref)
+        requests.get.assert_called_once_with(ref)
+
+    def test_cache_results_off(self):
+        ref = "http://bar"
+        data = {"baz" : 12}
+
+        with mock.patch("jsonref.requests") as requests:
+            requests.get.return_value.json.return_value = data
+            dereferencer = Dereferencer(cache_results=False)
+            dereferencer(ref)
+            dereferencer(ref)
+        self.assertEqual(requests.get.call_count, 2)
 
 
 class ProxyTestMixin:
