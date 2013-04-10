@@ -25,8 +25,9 @@ do not try to iterate over the entire data structure.
     >>> pprint(data)
     {'a': 12345, 'b': 12345}
 
-The proxies are almost completely transparent, and support all operations of
-the underlying data.
+The proxies are almost completely transparent, and support all operations on
+the underlying data. (Please report if this is not the case, it should be fixed
+or documented.)
 
 .. code-block:: python
 
