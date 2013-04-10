@@ -21,5 +21,22 @@ do not try to iterate over the entire data structure.
 
     >>> # An example json document
     >>> json_str = """{"a": 12345, "b": {"$ref": "#/a"}}"""
-    >>> pprint(jsonref.loads(json_str))
+    >>> data = jsonref.loads(json_str)
+    >>> pprint(data)
     {'a': 12345, 'b': 12345}
+
+The proxies are almost completely transparent, and support all operations of
+the underlying data.
+
+.. code-block:: python
+
+    >>> data["a"] == data["b"]
+    True
+    >>> data["b"] *= 2
+    >>> pprint(data)
+    {'a': 12345, 'b': 24690}
+    >>> isinstance(data["b"], int)
+    True
+    >>> # You can tell it is a proxy by using the type function
+    >>> type(data["b"])
+    <class 'lazyproxy.LazyProxy'>
