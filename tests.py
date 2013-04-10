@@ -20,24 +20,34 @@ class TestRefLoading(unittest.TestCase):
         json = {"a": 5, "b": {"$ref": "#/a"}}
         self.assertEqual(loadp(json)["b"], json["a"])
 
-    def test_result_cached(self):
+    def test_custom_dereferencer(self):
         json = {"$ref": "foo"}
         dereferencer = mock.Mock(return_value=42)
         result = loadp(json, dereferencer=dereferencer)
+        # Dereferencing should not occur until we do something with result
+        self.assertEqual(dereferencer.call_count, 0)
+        # Make sure we got the right result
+        self.assertEqual(result, 42)
         # Do several things with result
         result + 3
         repr(result)
         result *= 2
+        # Make sure we only called the dereferencer once
         dereferencer.assert_called_once_with("foo")
-
-    def test_custom_dereferencer(self):
-        json = {"$ref": "foo"}
-        result = loadp(json, dereferencer=lambda x: "bar")
-        self.assertEqual(result, "bar")
 
     def test_loads(self):
         json = """{"a": 1, "b": {"$ref": "#/a"}}"""
         self.assertEqual(loads(json), {"a": 1, "b": 1})
+
+    def test_base_uri_resolution(self):
+        json = {"$ref": "foo"}
+        dereferencer = mock.Mock(return_value=None)
+        result = loadp(
+            json, base_uri="http://bar.com", dereferencer=dereferencer
+        )
+        self.assertEqual(result, None)
+        dereferencer.assert_called_once_with("http://bar.com/foo")
+
 
 class ProxyTestMixin:
 
@@ -173,6 +183,7 @@ class InPlaceMixin(ProxyTestMixin):
         p,v = mk(); p/=61; v/=61; self.assertEqual(p.__subject__, v)
         p,v = mk(); p%=19; v%=19; self.assertEqual(p.__subject__, v)
         ProxyTestMixin.checkNumeric(self, vv)
+
 
 class TestLazyProxy(InPlaceMixin, unittest.TestCase):
     proxied = lambda self, v: LazyProxy(lambda:v)
