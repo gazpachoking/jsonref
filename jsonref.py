@@ -119,7 +119,11 @@ def load(json_file, *args, **kwargs):
     """
 
     base_uri = kwargs.pop('base_uri', None)
-    return loadp(json.load(json_file, *args, **kwargs), base_uri=base_uri)
+    dref = kwargs.pop('dereferencer', dereferencer)
+    return loadp(
+        json.load(json_file, *args, **kwargs),
+        base_uri=base_uri, dereferencer=dref
+    )
 
 
 def loads(json_str, *args, **kwargs):
@@ -129,32 +133,39 @@ def loads(json_str, *args, **kwargs):
 
     :param json_str: The JSON string to load
     :param base_uri: URI to resolve relative references against
+    :param dereferencer: Callable that takes a URI and returns the parsed JSON
 
     """
 
     base_uri = kwargs.pop('base_uri', None)
-    return loadp(json.loads(json_str, *args, **kwargs), base_uri=base_uri)
+    dref = kwargs.pop('dereferencer', dereferencer)
+    return loadp(
+        json.loads(json_str, *args, **kwargs),
+        base_uri=base_uri, dereferencer=dref
+    )
 
 
-def loaduri(uri):
+def loaduri(uri, dereferencer=dereferencer):
     """
     Load JSON data from ``uri`` with JSON references proxied to their referent
     data.
 
     :param uri: URI to fetch the JSON from
+    :param dereferencer: Callable that takes a URI and returns the parsed JSON
 
     """
 
     return loadp(dereferencer(uri), base_uri=uri)
 
 
-def loadp(obj, base_uri=None):
+def loadp(obj, base_uri=None, dereferencer=dereferencer):
     """
     Replaces all JSON reference objects within a python object with proxies
     to the data pointed to by the reference.
 
     :param obj: Python data structure consisting of JSON primitive types
     :param base_uri: URI to resolve relative references against
+    :param dereferencer: Callable that takes a URI and returns the parsed JSON
 
     """
 

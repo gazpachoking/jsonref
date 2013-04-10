@@ -1,7 +1,7 @@
 import sys
 import unittest
 
-from jsonref import loadp
+from jsonref import loadp, loads
 from lazyproxy import LazyProxy
 
 PY3 = sys.version_info[0] >= 3
@@ -15,9 +15,17 @@ if PY3:
 class TestRefLoading(unittest.TestCase):
 
     def test_local_ref(self):
-        data = {"a": 5, "b": {"$ref": "#/a"}}
-        self.assertEqual(loadp(data)["b"], data["a"])
+        json = {"a": 5, "b": {"$ref": "#/a"}}
+        self.assertEqual(loadp(json)["b"], json["a"])
 
+    def test_custom_dereferencer(self):
+        json = {"$ref": "foo"}
+        result = loadp(json, dereferencer=lambda x: "bar")
+        self.assertEqual(result, "bar")
+
+    def test_loads(self):
+        json = """{"a": 1, "b": {"$ref": "#/a"}}"""
+        self.assertEqual(loads(json), {"a": 1, "b": 1})
 
 class ProxyTestMixin:
 
