@@ -21,10 +21,10 @@ the entire data structure.
     >>> import jsonref
 
     >>> # An example json document
-    >>> json_str = """{"a": 12345, "b": {"$ref": "#/a"}}"""
+    >>> json_str = """{"real": [1, 2, 3, 4], "ref": {"$ref": "#/real"}}"""
     >>> data = jsonref.loads(json_str)
     >>> pprint(data)  # Reference is not evaluated until here
-    {'a': 12345, 'b': 12345}
+    {'real': [1, 2, 3, 4], 'ref': [1, 2, 3, 4]}
 
 References objects are replaced by lazy lookup proxy objects
 (:class:`LazyProxy`.) The proxies are almost completely transparent,
@@ -35,17 +35,18 @@ operation only with the built-in function :func:`type`, and with the
 .. code-block:: python
 
     >>> # You can tell it is a proxy by using the type function
-    >>> type(data["b"])
-    <class 'lazyproxy.LazyProxy'>
+    >>> type(data["real"]), type(data["ref"])
+    (<class 'list'>, <class 'lazyproxy.LazyProxy'>)
     >>> # You can access the underlying object with the __subject__ attribute
-    >>> type(data["b"].__subject__)
-    <class 'int'>
+    >>> type(data["ref"].__subject__)
+    <class 'list'>
     >>> # Other than that you can use the proxy just like the underlying object
-    >>> isinstance(data["b"], int)
+    >>> ref = data["ref"]
+    >>> isinstance(ref, list)
     True
-    >>> data["a"] == data["b"]
+    >>> data["real"] == ref
     True
-    >>> data["b"] = "aoeu"
-    >>> del data["a"]
+    >>> ref.append(5)
+    >>> del ref[0]
     >>> pprint(data)
-    {'b': 'aoeu'}
+    {'real': [1, 2, 3, 4], 'ref': [2, 3, 4, 5]}
