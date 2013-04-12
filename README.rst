@@ -34,16 +34,18 @@ operation only with the built-in function :func:`type`, and with the
 
 .. code-block:: python
 
-    >>> data["a"] == data["b"]
-    True
-    >>> data["b"] *= 2
-    >>> pprint(data)
-    {'a': 12345, 'b': 24690}
-    >>> isinstance(data["b"], int)
-    True
     >>> # You can tell it is a proxy by using the type function
     >>> type(data["b"])
     <class 'lazyproxy.LazyProxy'>
     >>> # You can access the underlying object with the __subject__ attribute
     >>> type(data["b"].__subject__)
     <class 'int'>
+    >>> # Other than that you can use the proxy just like the underlying object
+    >>> isinstance(data["b"], int)
+    True
+    >>> data["a"] == data["b"]
+    True
+    >>> data["b"] = "aoeu"
+    >>> del data["a"]
+    >>> pprint(data)
+    {'b': 'aoeu'}
