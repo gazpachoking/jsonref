@@ -1,22 +1,31 @@
+from copy import deepcopy
 import operator
 import json
 import sys
 import unittest
 
-import mock
+if sys.version_info[:2] < (2, 7):
+    import unittest2 as unittest
+else:
+    import unittest
 
-from jsonref import loadp, loads, Dereferencer
+try:
+    from unittest import mock
+except ImportError:
+    import mock
+
+from jsonref import PY3, loadp, loads, Dereferencer
 from lazyproxy import LazyProxy
-
-PY3 = sys.version_info[0] >= 3
 
 if PY3:
     long = int
     div = operator.truediv
+    idiv = operator.itruediv
     def cmp(a, b):
         return (a > b) - (a < b)
 else:
     div = operator.div
+    idiv = operator.idiv
 
 
 class TestRefLoading(unittest.TestCase):
@@ -114,27 +123,52 @@ class TestDereferencer(unittest.TestCase):
         self.assertEqual(requests.get.call_count, 2)
 
 
-class ProxyTestMixin:
+_unset = object()
 
-    def check_func(self, func, value, arg=None, reversable=False):
+
+class TestLazyProxy(unittest.TestCase):
+    def proxied(self, v):
+        c = deepcopy(v)
+        return LazyProxy(lambda: c)
+
+    def check_func(self, func, value, other=_unset):
         """
         Checks func works the same with `value` as when `value` is proxied.
 
         """
 
         p = self.proxied(value)
-        if arg is not None:
-            self.assertEqual(func(p, arg), func(value, arg))
-            if reversable:
-                self.assertEqual(func(arg, p), func(arg, value))
+        args = []
+        if other is not _unset:
+            args = [other]
+        try:
+            result = func(value, *args)
+        except Exception as e:
+            with self.assertRaises(type(e)):
+                func(p, *args)
         else:
-            self.assertEqual(func(p), func(value))
+            self.assertEqual(func(p, *args), result)
+        # If this func takes two arguments, try them reversed as well
+        if other is not _unset:
+            try:
+                result = func(other, value)
+            except Exception as e:
+                with self.assertRaises(type(e)):
+                    func(other, p)
+            else:
+                self.assertEqual(func(other, p), result, "func: %r, other: %r, p: %r" % (func, other, p))
 
     def check_integer(self, v):
-        for op in (operator.and_, operator.or_, operator.xor):
-            self.check_func(op, v, 0b10101, reversable=True)
-        for op in (operator.lshift, operator.rshift):
-            self.check_func(op, v, 3, reversable=True)
+        for op in (
+            operator.and_, operator.or_, operator.xor,
+            operator.iand, operator.ior, operator.ixor
+        ):
+            self.check_func(op, v, 0b10101)
+        for op in (
+            operator.lshift, operator.rshift,
+            operator.ilshift, operator.irshift
+        ):
+            self.check_func(op, v, 3)
         for op in (operator.invert, hex, oct):
             self.check_func(op, v)
 
@@ -147,97 +181,81 @@ class ProxyTestMixin:
             self.check_func(op, v)
 
         for other in (5, 13.7):  # Check against both an int and a float
-            for op in(operator.mul, operator.pow, operator.add, operator.sub):
-                self.check_func(op, v, other, reversable=True)
-
-            for op in (
+            for op in(
+                # Math
+                operator.mul, operator.pow, operator.add, operator.sub, div,
+                operator.truediv, operator.floordiv, operator.mod, divmod,
+                # In-place
+                operator.imul, operator.ipow, operator.iadd, operator.isub,
+                idiv, operator.itruediv, operator.ifloordiv, operator.imod,
+                # Comparison
                 operator.lt, operator.le, operator.gt, operator.ge,
                 operator.eq, operator.ne, cmp
             ):
-                self.check_func(op, v, other, reversable=True)
-
-            for op in (
-                div, operator.truediv, operator.floordiv, operator.mod,
-                divmod
-            ):
-                self.check_func(op, v, other, reversable=v)
-                if not v:
-                    with self.assertRaises(ZeroDivisionError):
-                        op(other, self.proxied(v))
+                self.check_func(op, v, other)
 
         self.check_basics(v)
 
     def check_list(self, v):
         p = self.proxied(v)
         for i in range(len(v)):
-            self.assertEqual(p[i], v[i])
-            self.assertEqual(p[i:], v[i:])
-            self.assertEqual(p[:i], v[:i])
-            self.assertEqual(p[i::-1], v[i::-1])
+            for arg in (i, slice(i), slice(None, i), slice(i, None, -1)):
+                self.check_func(operator.getitem, v, arg)
         self.check_container(v)
 
         c = list(v)
-        del p[::1]
-        del c[::1]
-        self.assertEqual(v, c)
+        del p[::2]
+        del c[::2]
+        self.assertEqual(p, c)
 
         p[1:1] = [23]
         c[1:1] = [23]
-        self.assertEqual(v, c)
+        self.assertEqual(p, c)
+
+        p.insert(1, 0)
+        c.insert(1, 0)
+        self.assertEqual(p, c)
+
+        p += [4]
+        c += [4]
+        self.assertEqual(p, c)
 
     def check_container(self, v):
-        p = self.proxied(v)
-        self.assertEqual(list(p), list(v))
-        self.assertEqual(list(iter(p)), list(iter(v)))
-        self.assertEqual(len(p), len(v))
-        self.assertEqual(42 in p, 42 in v)
-        self.assertEqual(99 in p, 99 in v)
+        for op in (list, set, len, lambda x: list(iter(x))):
+            self.check_func(op, v)
         self.check_basics(v)
 
     def check_basics(self, v):
-        p = self.proxied(v)
         for f in bool, repr, str:
-            self.assertEqual(f(p), f(v))
+            self.check_func(f, v)
 
     def test_numbers(self):
         for i in range(20):
             self.check_integer(i)
 
         f = -40
-        while f<=20.0:
+        while f <= 20.0:
             self.check_numeric(f)
             f += 2.25
 
     def test_lists(self):
-        for d in [1,2], [3,42,59], [99,23,55]:
-            self.check_list(d)
+        for l in [1,2], [3,42,59], [99,23,55], ["a", "b", 1.4, 17.3, -3, 42]:
+            self.check_list(l)
 
+    def test_dicts(self):
+        for d in ({"a": 3, 4: 2, 1.5: "b"}, {}, {"": ""}):
+            self.check_container(d)
 
-class InPlaceMixin(ProxyTestMixin):
+    def test_immutable(self):
+        a = self.proxied(3)
+        b = a
+        b += 3
+        self.assertEqual(a, 3)
+        self.assertEqual(b, 6)
 
-    def check_integer(self, vv):
-        mk = lambda: (self.proxied(vv), vv)
-        p,v = mk()
-        p|=0b010101; v|=0b010101
-        self.assertEqual(p.__subject__, v)
-        p,v = mk(); p&=0b010101; v&=0b010101; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p^=0b010101; v^=0b010101; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p<<=3; v<<=3; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p>>=3; v>>=3; self.assertEqual(p.__subject__, v)
-        ProxyTestMixin.check_integer(self, vv)
-
-    def check_numeric(self, vv):
-        mk = lambda: (self.proxied(vv), vv)
-        p,v = mk(); p+=17; v+=17; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p-=22; v-=22; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p*=15; v*=15; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p//=3; v//=3; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p**=2; v**=2; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p/=61; v/=61; self.assertEqual(p.__subject__, v)
-        p,v = mk(); p%=19; v%=19; self.assertEqual(p.__subject__, v)
-        ProxyTestMixin.check_numeric(self, vv)
-
-
-class TestLazyProxy(InPlaceMixin, unittest.TestCase):
-    proxied = lambda self, v: LazyProxy(lambda:v)
-
+    def test_mutable(self):
+        a = self.proxied([0])
+        b = a
+        b += [1]
+        self.assertEqual(a, [0, 1])
+        self.assertEqual(b, [0, 1])
