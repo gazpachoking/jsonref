@@ -17,14 +17,13 @@ OPERATORS = [
     "eq", "ne", "lt", "gt", "le", "ge",
     # Container
     "getitem", "setitem", "delitem", "contains",
+    # In-place operators
+    "iadd", "isub", "imul", "ifloordiv", "itruediv", "imod", "ipow", "ilshift",
+    "irshift", "iand", "ior", "ixor"
 ]
 REFLECTED_OPERATORS = [
     "add", "sub", "mul", "floordiv", "truediv", "mod", "pow", "and", "or",
     "xor", "lshift", "rshift"
-]
-INPLACE_OPERATORS = [
-    "iadd", "isub", "imul", "ifloordiv", "itruediv", "imod", "ipow", "ilshift",
-    "irshift", "iand", "ior", "ixor"
 ]
 # These functions all have magic methods named after them
 MAGIC_FUNCS = [
@@ -34,9 +33,8 @@ MAGIC_FUNCS = [
 if PY3:
     MAGIC_FUNCS += [bytes]
 else:
-    OPERATORS += ["getslice", "setslice", "delslice"]
+    OPERATORS += ["getslice", "setslice", "delslice", "idiv"]
     REFLECTED_OPERATORS += ["div"]
-    INPLACE_OPERATORS += ["idiv"]
     MAGIC_FUNCS += [long, unicode, cmp, coerce, oct, hex]
 
 
@@ -87,17 +85,13 @@ get_cache = LazyProxy.__cache__.__get__
 set_cache = LazyProxy.__cache__.__set__
 
 
-def proxy_func(func, arg_pos=0, inplace=False):
+def proxy_func(func, arg_pos=0):
     @wraps(func)
     def proxied(p, *args, **kwargs):
         args = list(args)
         args.insert(arg_pos, p.__subject__)
         result = func(*args, **kwargs)
-        if inplace:
-            p.__subject__ = result
-            return p
-        else:
-            return result
+        return result
     return proxied
 
 
@@ -113,13 +107,6 @@ for op in REFLECTED_OPERATORS:
     setattr(
         LazyProxy, "__r%s__" % op,
         proxy_func(getattr(operator, "__%s__" % op), arg_pos=1)
-    )
-
-for op in INPLACE_OPERATORS:
-    magic_meth = "__%s__" % op
-    setattr(
-        LazyProxy, magic_meth,
-        proxy_func(getattr(operator, magic_meth), inplace=True)
     )
 
 # One offs
