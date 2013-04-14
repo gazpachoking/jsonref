@@ -278,3 +278,13 @@ class TestLazyProxy(unittest.TestCase):
         func = lambda a: a * 2
         p = self.proxied(func)
         self.assertEqual(p(5), func(5))
+
+    def test_subject_attribute(self):
+        # Test getting subject
+        v = ['aoeu']
+        p = LazyProxy(lambda: v)
+        self.assertIs(p.__subject__, v)
+        # Test setting subject
+        v2 = 'aoeu'
+        p.__subject__ = v2
+        self.assertEqual(p, v2)
