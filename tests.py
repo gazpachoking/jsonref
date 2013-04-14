@@ -259,3 +259,22 @@ class TestLazyProxy(unittest.TestCase):
         b += [1]
         self.assertEqual(a, [0, 1])
         self.assertEqual(b, [0, 1])
+
+    def test_attributes(self):
+        class C(object):
+            def __init__(self):
+                self.attribute = 'value'
+        v = C()
+        p = self.proxied(v)
+        p.attribute = 'aoeu'
+        v.attribute = 'aoeu'
+        self.assertEqual(p.attribute, v.attribute)
+        del p.attribute
+        del v.attribute
+        self.assertFalse(hasattr(v, 'attribute'))
+        self.assertFalse(hasattr(p, 'attribute'))
+
+    def test_call(self):
+        func = lambda a: a * 2
+        p = self.proxied(func)
+        self.assertEqual(p(5), func(5))
