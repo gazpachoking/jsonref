@@ -268,7 +268,7 @@ class TestLazyProxy(unittest.TestCase):
         p = self.proxied(v)
         p.attribute = 'aoeu'
         v.attribute = 'aoeu'
-        self.assertEqual(p.attribute, v.attribute)
+        self.assertEqual(p.__subject__.attribute, v.attribute)
         del p.attribute
         del v.attribute
         self.assertFalse(hasattr(v, 'attribute'))
@@ -288,3 +288,20 @@ class TestLazyProxy(unittest.TestCase):
         v2 = 'aoeu'
         p.__subject__ = v2
         self.assertEqual(p, v2)
+
+    def test_subclass_attributes(self):
+        class C(LazyProxy):
+            class_attr = "aoeu"
+        c = C(lambda: 3)
+        # Make sure proxy functionality still works
+        self.assertEqual(c, 3)
+        # Make sure subclass attr is accessible
+        self.assertEqual(c.class_attr, "aoeu")
+        # Make sure instance attribute is set on proxy
+        c.class_attr = "htns"
+        self.assertEqual(c.class_attr, "htns")
+        self.assertFalse(hasattr(c.__subject__, "class_attr"))
+        # Test instance attribute is deleted from proxy
+        del c.class_attr
+        self.assertEqual(c.class_attr, "aoeu")
+

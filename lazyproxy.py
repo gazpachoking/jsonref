@@ -38,12 +38,21 @@ else:
     MAGIC_FUNCS += [long, unicode, cmp, coerce, oct, hex]
 
 
+class ProxyMetaClass(type):
+    def __new__(cls, name, bases, dct):
+        notproxied = ["__subject__"]
+        if bases != (object,):
+            notproxied += list(dct)
+        cls.__notproxied__ = notproxied
+        return type.__new__(cls, name, bases, dct)
+
 class LazyProxy(object):
     """Proxy for a lazily-obtained object, that is cached on first use"""
+    __metaclass__ = ProxyMetaClass
     __slots__ = ("__callback__", "__cache__")
 
     def __init__(self, func):
-        set_callback(self,func)
+        set_callback(self, func)
 
     @property
     def __subject__(self):
@@ -58,19 +67,18 @@ class LazyProxy(object):
         set_cache(self, value)
 
     def __getattribute__(self, attr):
-        subject = object.__getattribute__(self, '__subject__')
-        if attr == '__subject__':
-            return subject
-        return getattr(subject,attr)
+        if attr in type(self).__notproxied__:
+            return object.__getattribute__(self, attr)
+        return getattr(self.__subject__, attr)
 
     def __setattr__(self, attr, val):
-        if attr == '__subject__':
+        if attr in type(self).__notproxied__:
             object.__setattr__(self, attr, val)
         else:
             setattr(self.__subject__, attr, val)
 
     def __delattr__(self, attr):
-        if attr == '__subject__':
+        if attr in type(self).__notproxied__:
             object.__delattr__(self, attr)
         else:
             delattr(self.__subject__, attr)
