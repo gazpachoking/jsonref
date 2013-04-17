@@ -156,7 +156,10 @@ class TestLazyProxy(unittest.TestCase):
                 with self.assertRaises(type(e)):
                     func(other, p)
             else:
-                self.assertEqual(func(other, p), result, "func: %r, other: %r, p: %r" % (func, other, p))
+                self.assertEqual(
+                    func(other, p), result,
+                    "func: %r, other: %r, p: %r" % (func, other, p)
+                )
 
     def check_integer(self, v):
         for op in (
@@ -291,6 +294,7 @@ class TestLazyProxy(unittest.TestCase):
 
     def test_subclass_attributes(self):
         class C(LazyProxy):
+            __notproxied__ = ("class_attr",)
             class_attr = "aoeu"
         c = C(lambda: 3)
         # Make sure proxy functionality still works
@@ -304,4 +308,44 @@ class TestLazyProxy(unittest.TestCase):
         # Test instance attribute is deleted from proxy
         del c.class_attr
         self.assertEqual(c.class_attr, "aoeu")
+
+    def test_no_proxy_during_subclass_methods(self):
+
+        class C(LazyProxy):
+            __notproxied__ = ("getter", "setter")
+            def __init__(self, value):
+                self.attr = 5
+                super(C, self).__init__(lambda: value)
+            @property
+            def getter(self):
+                return self.attr
+            def setter(self, value):
+                self.attr = value
+            @LazyProxy.notproxied
+            def decorated(self):
+                return 2.0
+            @property
+            @LazyProxy.notproxied
+            def decorated_prop(self):
+                return 3.0
+
+        c = C("proxied")
+        # Sanity check, proxying is working
+        self.assertEqual(c, "proxied")
+        # The instance properties and methods should be able to read and write
+        # attributes to self without any proxying
+        self.assertEqual(c.getter, 5)
+        c.setter("aoeu")
+        self.assertEqual(c.getter, "aoeu")
+        # The decorated methods and properties should automatically be added to
+        # the __notproxied__ list
+        self.assertIn("decorated", C.__notproxied__)
+        self.assertEqual(c.decorated(), 2.0)
+        self.assertIn("decorated_prop", C.__notproxied__)
+        self.assertEqual(c.decorated_prop, 3.0)
+        # Outside the methods it should still be proxied (int has no 'attr')
+        with self.assertRaises(AttributeError):
+            c.attr = 1
+        with self.assertRaises(AttributeError):
+            c.attr
 

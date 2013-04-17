@@ -38,59 +38,108 @@ else:
     MAGIC_FUNCS += [long, unicode, cmp, coerce, oct, hex]
 
 
+_oga = object.__getattribute__
+_osa = object.__setattr__
+
+
+def _no_proxy(method):
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        notproxied = _oga(self, "__notproxied__")
+        _osa(self, "__notproxied__", True)
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            _osa(self, "__notproxied__", notproxied)
+    return wrapper
+
+
 class ProxyMetaClass(type):
     def __new__(cls, name, bases, dct):
-        notproxied = ["__subject__"]
         if bases != (object,):
-            notproxied += list(dct)
-        cls.__notproxied__ = notproxied
+            notproxied = set(dct.get("__notproxied__", ()))
+            # In subclasses, wrap method and property calls so that
+            # proxying is turned off during them
+            for key, val in dct.items():
+                if callable(val):
+                    if getattr(val, "__notproxied__", False):
+                        notproxied.add(key)
+                    dct[key] = _no_proxy(val)
+                elif isinstance(val, property):
+                    if getattr(val.fget, "__notproxied__", False):
+                        notproxied.add(key)
+                    # Remake properties, with the getter method wrapped
+                    dct[key] = property(
+                        _no_proxy(val.fget), val.fset, val.fdel
+                    )
+            # Add all the non-proxied attributes from base classes
+            for base in bases:
+                if hasattr(base, "__notproxied__"):
+                    notproxied.update(base.__notproxied__)
+            dct["__notproxied__"] = notproxied
         return type.__new__(cls, name, bases, dct)
 
+def _should_proxy(self, attr):
+    notproxied = _oga(self, "__notproxied__")
+    if notproxied is True:
+        # TODO: Not quite sure if this is right yet, more tests needed
+        if type(self) is not LazyProxy:
+            return False
+    elif attr in notproxied:
+        return False
+    return True
+
 class LazyProxy(object):
-    """Proxy for a lazily-obtained object, that is cached on first use"""
+    """
+    Proxy for a lazily-obtained object, that is cached on first use.
+
+    """
+
     __metaclass__ = ProxyMetaClass
-    __slots__ = ("__callback__", "__cache__")
+    __notproxied__ = ("__subject__",)
 
     def __init__(self, func):
-        set_callback(self, func)
+        _osa(self, "__callback__", func)
+
+    @staticmethod
+    def notproxied(func):
+        func.__notproxied__ = True
+        return func
 
     @property
     def __subject__(self):
         try:
-            return get_cache(self)
+            return _oga(self, "__cache__")
         except AttributeError:
-            set_cache(self, get_callback(self)())
-            return get_cache(self)
+            _osa(self, "__cache__", _oga(self, "__callback__")())
+            return _oga(self, "__cache__")
 
     @__subject__.setter
     def __subject__(self, value):
-        set_cache(self, value)
+        _osa(self, "__cache__", value)
 
     def __getattribute__(self, attr):
-        if attr in type(self).__notproxied__:
-            return object.__getattribute__(self, attr)
-        return getattr(self.__subject__, attr)
+        # notproxied = _oga(self, "__notproxied__")
+        # if notproxied is True or attr in notproxied:
+        #     return _oga(self, attr)
+        if _should_proxy(self, attr):
+            return getattr(self.__subject__, attr)
+        return _oga(self, attr)
 
     def __setattr__(self, attr, val):
-        if attr in type(self).__notproxied__:
-            object.__setattr__(self, attr, val)
+        if _oga(self, "__notproxied__") is True or attr in _oga(self, "__notproxied__"):
+            _osa(self, attr, val)
         else:
             setattr(self.__subject__, attr, val)
 
     def __delattr__(self, attr):
-        if attr in type(self).__notproxied__:
+        if _oga(self, "__notproxied__") is True or attr in _oga(self, "__notproxied__"):
             object.__delattr__(self, attr)
         else:
             delattr(self.__subject__, attr)
 
     def __call__(self, *args, **kw):
         return self.__subject__(*args, **kw)
-
-
-set_callback = LazyProxy.__callback__.__set__
-get_callback = LazyProxy.__callback__.__get__
-get_cache = LazyProxy.__cache__.__get__
-set_cache = LazyProxy.__cache__.__set__
 
 
 def proxy_func(func, arg_pos=0):
