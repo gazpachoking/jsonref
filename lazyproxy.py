@@ -79,6 +79,16 @@ class ProxyMetaClass(type):
             dct["__notproxied__"] = notproxied
         return type.__new__(cls, name, bases, dct)
 
+
+def _proxmetaclass(cls):
+    """
+    Class decorator to remake the class as a ProxyMetaClass in both
+    python 2 and 3
+
+    """
+    return ProxyMetaClass(cls.__name__, cls.__bases__, dict(cls.__dict__))
+
+
 def _should_proxy(self, attr):
     notproxied = _oga(self, "__notproxied__")
     if notproxied is True:
@@ -89,13 +99,14 @@ def _should_proxy(self, attr):
         return False
     return True
 
+
+@_proxmetaclass
 class LazyProxy(object):
     """
     Proxy for a lazily-obtained object, that is cached on first use.
 
     """
 
-    __metaclass__ = ProxyMetaClass
     __notproxied__ = ("__subject__",)
 
     def __init__(self, func):
