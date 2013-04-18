@@ -14,7 +14,7 @@ try:
 except ImportError:
     import mock
 
-from jsonref import PY3, loadp, loads, Dereferencer
+from jsonref import PY3, replace_json_refs, loads, Dereferencer
 from lazyproxy import LazyProxy
 
 if PY3:
@@ -32,12 +32,12 @@ class TestRefLoading(unittest.TestCase):
 
     def test_local_ref(self):
         json = {"a": 5, "b": {"$ref": "#/a"}}
-        self.assertEqual(loadp(json)["b"], json["a"])
+        self.assertEqual(replace_json_refs(json)["b"], json["a"])
 
     def test_custom_dereferencer(self):
         data = {"$ref": "foo"}
         dereferencer = mock.Mock(return_value=42)
-        result = loadp(data, dereferencer=dereferencer)
+        result = replace_json_refs(data, deref=dereferencer)
         # Dereferencing should not occur until we do something with result
         self.assertEqual(dereferencer.call_count, 0)
         # Make sure we got the right result
@@ -55,11 +55,11 @@ class TestRefLoading(unittest.TestCase):
 
     def test_base_uri_resolution(self):
         json = {"$ref": "foo"}
-        dereferencer = mock.Mock(return_value=None)
-        result = loadp(
-            json, base_uri="http://bar.com", dereferencer=dereferencer
+        dereferencer = mock.Mock(return_value=17)
+        result = replace_json_refs(
+            json, base_uri="http://bar.com", deref=dereferencer
         )
-        self.assertEqual(result, None)
+        self.assertEqual(result, 17)
         dereferencer.assert_called_once_with("http://bar.com/foo")
 
 

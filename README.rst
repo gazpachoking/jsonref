@@ -27,16 +27,16 @@ the entire data structure.
     {'real': [1, 2, 3, 4], 'ref': [1, 2, 3, 4]}
 
 References objects are replaced by lazy lookup proxy objects
-(:class:`LazyProxy`.) The proxies are almost completely transparent,
+(:class:`JsonRef`.) The proxies are almost completely transparent,
 and support almost all operations on the underlying data. They differ in
 operation only with the built-in function :func:`type`, and with the
-:attr:`LazyProxy.__subject__` attribute, which holds the actual object.
+:attr:`JsonRef.__subject__` attribute, which holds the actual object.
 
 .. code-block:: python
 
     >>> # You can tell it is a proxy by using the type function
     >>> type(data["real"]), type(data["ref"])
-    (<class 'list'>, <class 'lazyproxy.LazyProxy'>)
+    (<class 'list'>, <class 'jsonref.JsonRef'>)
     >>> # You can access the underlying object with the __subject__ attribute
     >>> type(data["ref"].__subject__)
     <class 'list'>
