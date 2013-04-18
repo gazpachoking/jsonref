@@ -29,41 +29,72 @@ __version__ = "0.1-dev"
 
 
 class JsonRef(LazyProxy):
+    """
+    A lazy loading proxy to the dereferenced data pointed to by a JSON
+    Reference object.
+
+    Proxies almost all operators and attributes to the dereferenced data, which
+    will be loaded when first accessed. The following attributes are not
+    proxied:
+
+    :attribute __subject__: The referent data
+    :attribute __reference__: The original JSON Reference object
+
+    """
+    __notproxied__ = ("__reference__",)
     def __init__(
-            self, refobj, base_uri=None, deref=None,
-            base_doc=None,
+            self, refobj, base_uri=None, deref=None, base_doc=None,
+            jsonschema=False, load_on_repr=False
     ):
+        """
+        :param refobj: A `dict` representing the JSON Reference object
+        :param base_uri: URI to resolve relative references against
+        :param deref: Callable that takes a URI and returns the parsed JSON
+        :param base_doc: Document at `base_uri` for local dereferencing
+            (defaults to `obj`)
+        :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
+            changes the `base_uri` for references contained within the object
+        :param load_on_repr: If set to False, `repr` calls will not cause
+            unloaded references to be loaded, allowing the repr of recursive
+            refs. (defaults to False)
+
+        """
         if not isinstance(refobj.get("$ref"), (str, unicode)):
             raise ValueError("Not a valid json reference object: %s" % refobj)
-        self.refobj = refobj
+        self.__reference__ = refobj
         self.base_doc=base_doc
         self.base_uri = base_uri
-        self.dereferencer = deref or dereferencer
+        self.deref = deref or dereferencer
+        self.jsonschema = jsonschema
+        self.load_on_repr = load_on_repr
 
     @property
     def _ref_kwargs(self):
         return dict(
-            base_uri=self.base_uri, base_doc=self.base_doc,
-            deref=self.dereferencer
+            base_uri=self.base_uri, base_doc=self.base_doc, deref=self.deref,
+            jsonschema=self.jsonschema, proxy_repr=self.load_on_repr
         )
 
     def callback(self):
-        full_uri = urlparse.urljoin(self.base_uri, self.refobj["$ref"])
+        full_uri = urlparse.urljoin(self.base_uri, self.__reference__["$ref"])
         uri, fragment = urlparse.urldefrag(full_uri)
 
         # Relative ref within the base document
-        if not uri or uri == self.base_uri:
-            return replace_json_refs(
-                resolve_pointer(self.base_doc, fragment), **self._ref_kwargs
-            )
+        if not uri or uri == self.base_uri and self.base_doc:
+            doc = resolve_pointer(self.base_doc, fragment)
+            return replace_json_refs(doc, **self._ref_kwargs)
 
         # Remote ref
-        base_doc = self.dereferencer(uri)
+        base_doc = self.deref(uri)
         doc = resolve_pointer(base_doc, fragment)
-        return replace_json_refs(
-            doc, base_uri=uri, base_doc=base_doc,
-            deref=self.dereferencer
-        )
+        kwargs = self._ref_kwargs
+        kwargs.update(base_doc=base_doc, base_uri=uri)
+        return replace_json_refs(doc, **kwargs)
+
+    def __repr__(self):
+        if self.load_on_repr or hasattr(self, "cache"):
+            return repr(self.__subject__)
+        return "JsonRef%r" % self.__reference__
 
 
 class _URIDict(MutableMapping):
@@ -133,30 +164,42 @@ class Dereferencer(object):
 dereferencer = Dereferencer()
 
 
-def replace_json_refs(
-        obj, base_uri=None, deref=dereferencer, base_doc=None
-):
+def replace_json_refs(obj, **kwargs):
     """
-    Returns a shallow copy of `obj` with all contained JSON reference objects
+    Returns a deep copy of `obj` with all contained JSON reference objects
     replaced by :class:`JsonRef` objects.
 
     :param obj: Python data structure consisting of JSON primitive types
+
+    The following arguments must all be specified as keywords.
+
     :param base_uri: URI to resolve relative references against
     :param deref: Callable that takes a URI and returns the parsed JSON
-    :param base_doc:
-        Document at `base_uri` for local dereferencing (defaults to `obj`)
+    :param base_doc: Document at `base_uri` for local dereferencing
+        (defaults to `obj`)
+    :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword changes
+        the `base_uri` for references contained within the object
+    :param load_on_repr: If set to False, `repr` calls will not cause unloaded
+        references to be loaded, allowing the repr of recursive refs.
+        (defaults to False)
 
     """
-    if base_doc is None:
-        base_doc = obj
-    def inner(inner_obj):
+
+    kwargs.setdefault('base_doc', obj)
+    def inner(inner_obj, **kwargs):
         if isinstance(inner_obj, dict):
             if isinstance(inner_obj.get("$ref"), (str, unicode)):
-                return JsonRef(
-                    inner_obj, base_uri=base_uri, deref=deref,
-                    base_doc=base_doc
-                )
-            return dict((k, inner(inner_obj[k])) for k in inner_obj)
+                return JsonRef(inner_obj, **kwargs)
+            if (
+                    kwargs.get("jsonschema") and
+                    isinstance(inner_obj.get("id"), (str, unicode))
+            ):
+                kwargs.update(
+                    base_uri=urlparse.urljoin(
+                        kwargs.get("base_uri", ""), inner_obj["id"]
+                    ),
+                    base_doc=inner_obj)
+            return dict((k, inner(inner_obj[k], **kwargs)) for k in inner_obj)
         elif isinstance(inner_obj, list):
             return [inner(i) for i in inner_obj]
         return inner_obj
