@@ -43,7 +43,7 @@ object.
     >>> # attribute
     >>> type(data["ref"].__subject__)
     <class 'list'>
-    # If you need to get at the reference object
+    >>> # If you need to get at the reference object
     >>> data["ref"].__reference__
     {'$ref': '#/real'}
     >>> # Other than that you can use the proxy just like the underlying object
