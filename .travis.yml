@@ -7,8 +7,7 @@ python:
   - "3.3"
 install:
   - python setup.py -q install
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install unittest2; fi
 script:
-  - python -m unittest tests
+  - py.test tests.py
   # Docs are in python 3 format
   - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then python -m doctest README.rst; fi

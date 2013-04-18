@@ -1,21 +1,16 @@
 from copy import deepcopy
 import operator
 import json
-import sys
-import unittest
-
-if sys.version_info[:2] < (2, 7):
-    import unittest2 as unittest
-else:
-    import unittest
 
 try:
     from unittest import mock
 except ImportError:
     import mock
 
+import pytest
+
 from jsonref import PY3, replace_json_refs, loads, Dereferencer
-from lazyproxy import LazyProxy
+from lazyproxy import Proxy, CallbackProxy, LazyProxy
 
 if PY3:
     long = int
@@ -28,20 +23,20 @@ else:
     idiv = operator.idiv
 
 
-class TestRefLoading(unittest.TestCase):
+class TestRefLoading(object):
 
     def test_local_ref(self):
         json = {"a": 5, "b": {"$ref": "#/a"}}
-        self.assertEqual(replace_json_refs(json)["b"], json["a"])
+        assert replace_json_refs(json)["b"] == json["a"]
 
     def test_custom_dereferencer(self):
         data = {"$ref": "foo"}
         dereferencer = mock.Mock(return_value=42)
         result = replace_json_refs(data, deref=dereferencer)
         # Dereferencing should not occur until we do something with result
-        self.assertEqual(dereferencer.call_count, 0)
+        assert dereferencer.call_count == 0
         # Make sure we got the right result
-        self.assertEqual(result, 42)
+        assert result == 42
         # Do several things with result
         result + 3
         repr(result)
@@ -51,7 +46,7 @@ class TestRefLoading(unittest.TestCase):
 
     def test_loads(self):
         json = """{"a": 1, "b": {"$ref": "#/a"}}"""
-        self.assertEqual(loads(json), {"a": 1, "b": 1})
+        assert loads(json) == {"a": 1, "b": 1}
 
     def test_base_uri_resolution(self):
         json = {"$ref": "foo"}
@@ -59,23 +54,24 @@ class TestRefLoading(unittest.TestCase):
         result = replace_json_refs(
             json, base_uri="http://bar.com", deref=dereferencer
         )
-        self.assertEqual(result, 17)
+        assert result == 17
         dereferencer.assert_called_once_with("http://bar.com/foo")
 
 
-class TestDereferencer(unittest.TestCase):
+class TestDereferencer(object):
 
     base_uri = ""
     stored_uri = "foo://stored"
-    stored_schema = {"stored" : "schema"}
+    stored_schema = {"stored": "schema"}
 
-    def setUp(self):
-        self.store = {self.stored_uri : self.stored_schema}
+    @pytest.fixture(scope="function", autouse=True)
+    def deferencer(self):
+        self.store = {self.stored_uri: self.stored_schema}
         self.dereferencer = Dereferencer(store=self.store)
 
     def test_it_retrieves_stored_refs(self):
         result = self.dereferencer(self.stored_uri)
-        self.assertIs(result, self.stored_schema)
+        assert result is self.stored_schema
 
     def test_it_retrieves_unstored_refs_via_requests(self):
         ref = "http://bar"
@@ -84,7 +80,7 @@ class TestDereferencer(unittest.TestCase):
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
             result = self.dereferencer(ref)
-            self.assertEqual(result, data)
+            assert result == data
         requests.get.assert_called_once_with("http://bar")
 
     def test_it_retrieves_unstored_refs_via_urlopen(self):
@@ -97,7 +93,7 @@ class TestDereferencer(unittest.TestCase):
                     json.dumps(data).encode("utf8")
                 )
                 result = self.dereferencer(ref)
-                self.assertEqual(result, data)
+                assert result == data
         urlopen.assert_called_once_with("http://bar")
 
     def test_cache_results_on(self):
@@ -120,14 +116,29 @@ class TestDereferencer(unittest.TestCase):
             dereferencer = Dereferencer(cache_results=False)
             dereferencer(ref)
             dereferencer(ref)
-        self.assertEqual(requests.get.call_count, 2)
+        assert requests.get.call_count == 2
+
 
 
 _unset = object()
 
 
-class TestLazyProxy(unittest.TestCase):
-    def proxied(self, v):
+class TestProxies(object):
+    @pytest.fixture(
+        scope="class", autouse=True,
+        params=["Proxy", "CallbackProxy", "LazyProxy"]
+    )
+    def make_proxify(self, request):
+        def proxify(val):
+            c = deepcopy(val)
+            if request.param == "Proxy":
+                return Proxy(c)
+            globals().get(request.param)
+            return globals().get(request.param)(lambda: c)
+        self.proxify = proxify
+        return proxify
+
+    def proxify(self, v):
         c = deepcopy(v)
         return LazyProxy(lambda: c)
 
@@ -137,29 +148,26 @@ class TestLazyProxy(unittest.TestCase):
 
         """
 
-        p = self.proxied(value)
+        p = self.proxify(value)
         args = []
         if other is not _unset:
             args = [other]
         try:
             result = func(value, *args)
         except Exception as e:
-            with self.assertRaises(type(e)):
+            with pytest.raises(type(e)):
                 func(p, *args)
         else:
-            self.assertEqual(func(p, *args), result)
+            assert func(p, *args) == result
         # If this func takes two arguments, try them reversed as well
         if other is not _unset:
             try:
                 result = func(other, value)
             except Exception as e:
-                with self.assertRaises(type(e)):
+                with pytest.raises(type(e)):
                     func(other, p)
             else:
-                self.assertEqual(
-                    func(other, p), result,
-                    "func: %r, other: %r, p: %r" % (func, other, p)
-                )
+                assert func(other, p) == result
 
     def check_integer(self, v):
         for op in (
@@ -200,7 +208,7 @@ class TestLazyProxy(unittest.TestCase):
         self.check_basics(v)
 
     def check_list(self, v):
-        p = self.proxied(v)
+        p = self.proxify(v)
         for i in range(len(v)):
             for arg in (i, slice(i), slice(None, i), slice(i, None, -1)):
                 self.check_func(operator.getitem, v, arg)
@@ -209,19 +217,19 @@ class TestLazyProxy(unittest.TestCase):
         c = list(v)
         del p[::2]
         del c[::2]
-        self.assertEqual(p, c)
+        assert p == c
 
         p[1:1] = [23]
         c[1:1] = [23]
-        self.assertEqual(p, c)
+        assert p == c
 
         p.insert(1, 0)
         c.insert(1, 0)
-        self.assertEqual(p, c)
+        assert p == c
 
         p += [4]
         c += [4]
-        self.assertEqual(p, c)
+        assert p == c
 
     def check_container(self, v):
         for op in (list, set, len, lambda x: list(iter(x))):
@@ -250,47 +258,47 @@ class TestLazyProxy(unittest.TestCase):
             self.check_container(d)
 
     def test_immutable(self):
-        a = self.proxied(3)
+        a = self.proxify(3)
         b = a
         b += 3
-        self.assertEqual(a, 3)
-        self.assertEqual(b, 6)
+        assert a == 3
+        assert b == 6
 
     def test_mutable(self):
-        a = self.proxied([0])
+        a = self.proxify([0])
         b = a
         b += [1]
-        self.assertEqual(a, [0, 1])
-        self.assertEqual(b, [0, 1])
+        assert a == [0, 1]
+        assert b == [0, 1]
 
     def test_attributes(self):
         class C(object):
             def __init__(self):
                 self.attribute = 'value'
         v = C()
-        p = self.proxied(v)
+        p = self.proxify(v)
         p.attribute = 'aoeu'
         v.attribute = 'aoeu'
-        self.assertEqual(p.__subject__.attribute, v.attribute)
+        assert p.__subject__.attribute == v.attribute
         del p.attribute
         del v.attribute
-        self.assertFalse(hasattr(v, 'attribute'))
-        self.assertFalse(hasattr(p, 'attribute'))
+        assert not hasattr(v, 'attribute')
+        assert not hasattr(p, 'attribute')
 
     def test_call(self):
         func = lambda a: a * 2
-        p = self.proxied(func)
-        self.assertEqual(p(5), func(5))
+        p = self.proxify(func)
+        assert p(5) == func(5)
 
     def test_subject_attribute(self):
         # Test getting subject
         v = ['aoeu']
         p = LazyProxy(lambda: v)
-        self.assertIs(p.__subject__, v)
+        assert p.__subject__ is v
         # Test setting subject
         v2 = 'aoeu'
         p.__subject__ = v2
-        self.assertEqual(p, v2)
+        assert p == v2
 
     def test_subclass_attributes(self):
         class C(LazyProxy):
@@ -298,16 +306,16 @@ class TestLazyProxy(unittest.TestCase):
             class_attr = "aoeu"
         c = C(lambda: 3)
         # Make sure proxy functionality still works
-        self.assertEqual(c, 3)
+        assert c == 3
         # Make sure subclass attr is accessible
-        self.assertEqual(c.class_attr, "aoeu")
+        assert c.class_attr == "aoeu"
         # Make sure instance attribute is set on proxy
         c.class_attr = "htns"
-        self.assertEqual(c.class_attr, "htns")
-        self.assertFalse(hasattr(c.__subject__, "class_attr"))
+        assert c.class_attr == "htns"
+        assert not hasattr(c.__subject__, "class_attr")
         # Test instance attribute is deleted from proxy
         del c.class_attr
-        self.assertEqual(c.class_attr, "aoeu")
+        assert c.class_attr == "aoeu"
 
     def test_no_proxy_during_subclass_methods(self):
         class A(LazyProxy):
@@ -338,23 +346,23 @@ class TestLazyProxy(unittest.TestCase):
 
         c = C("proxied")
         # Make sure super works
-        self.assertEqual(c, "proxied")
+        assert c == "proxied"
         # The instance properties and methods should be able to read and write
         # attributes to self without any proxying
-        self.assertEqual(c.getter, 5)
+        assert c.getter == 5
         c.setter("aoeu")
-        self.assertEqual(c.getter, "aoeu")
+        assert c.getter == "aoeu"
         # Even if they are added after the class is created
-        self.assertEqual(c.getter2(), "aoeu")
+        assert c.getter2() == "aoeu"
         # The decorated methods and properties should automatically be added to
         # the __notproxied__ list
-        self.assertIn("decorated", C.__notproxied__)
-        self.assertEqual(c.decorated(), 2.0)
-        self.assertIn("decorated_prop", C.__notproxied__)
-        self.assertEqual(c.decorated_prop, 3.0)
+        assert "decorated" in C.__notproxied__
+        assert c.decorated() == 2.0
+        assert "decorated_prop" in C.__notproxied__
+        assert c.decorated_prop == 3.0
         # Outside the methods it should still be proxied (str has no 'attr')
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             c.attr = 1
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             c.attr
 
