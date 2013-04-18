@@ -310,17 +310,22 @@ class TestLazyProxy(unittest.TestCase):
         self.assertEqual(c.class_attr, "aoeu")
 
     def test_no_proxy_during_subclass_methods(self):
+        class A(LazyProxy):
+            def setter(self, value):
+                self.attr = value
 
-        class C(LazyProxy):
-            __notproxied__ = ("getter", "setter")
+        class C(A):
+            __notproxied__ = ("getter", "setter", "__eq__")
             def __init__(self, value):
                 self.attr = 5
                 super(C, self).__init__(lambda: value)
+            def __equal__(self, other):
+                return False
             @property
             def getter(self):
                 return self.attr
             def setter(self, value):
-                self.attr = value
+                super(C, self).setter(value)
             @LazyProxy.notproxied
             def decorated(self):
                 return 2.0
@@ -329,14 +334,18 @@ class TestLazyProxy(unittest.TestCase):
             def decorated_prop(self):
                 return 3.0
 
+        C.getter2 = C.notproxied(lambda self: self.attr)
+
         c = C("proxied")
-        # Sanity check, proxying is working
+        # Make sure super works
         self.assertEqual(c, "proxied")
         # The instance properties and methods should be able to read and write
         # attributes to self without any proxying
         self.assertEqual(c.getter, 5)
         c.setter("aoeu")
         self.assertEqual(c.getter, "aoeu")
+        # Even if they are added after the class is created
+        self.assertEqual(c.getter2(), "aoeu")
         # The decorated methods and properties should automatically be added to
         # the __notproxied__ list
         self.assertIn("decorated", C.__notproxied__)
