@@ -224,8 +224,10 @@ def load(json_file, *args, **kwargs):
 
     base_uri = kwargs.pop('base_uri', None)
     dref = kwargs.pop('deref', dereferencer)
+    load_on_repr = kwargs.pop('load_on_repr', False)
     return replace_json_refs(
-        json.load(json_file, *args, **kwargs), base_uri=base_uri, deref=dref
+        json.load(json_file, *args, **kwargs),
+        base_uri=base_uri, deref=dref, load_on_repr=load_on_repr
     )
 
 
@@ -244,12 +246,14 @@ def loads(json_str, *args, **kwargs):
 
     base_uri = kwargs.pop('base_uri', None)
     deref = kwargs.pop('deref', dereferencer)
+    load_on_repr = kwargs.pop('load_on_repr', False)
     return replace_json_refs(
-        json.loads(json_str, *args, **kwargs), base_uri=base_uri, deref=deref
+        json.loads(json_str, *args, **kwargs),
+        base_uri=base_uri, deref=deref, load_on_repr=load_on_repr
     )
 
 
-def loaduri(uri, deref=dereferencer):
+def loaduri(uri, deref=dereferencer, load_on_repr=False):
     """
     Load JSON data from ``uri`` with JSON references proxied to their referent
     data.
@@ -259,7 +263,9 @@ def loaduri(uri, deref=dereferencer):
 
     """
 
-    return replace_json_refs(deref(uri), base_uri=uri, deref=deref)
+    return replace_json_refs(
+        deref(uri), base_uri=uri, deref=deref, load_on_repr=load_on_repr
+    )
 
 
 def resolve_pointer(document, pointer):

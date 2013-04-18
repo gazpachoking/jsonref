@@ -22,15 +22,17 @@ the entire data structure.
 
     >>> # An example json document
     >>> json_str = """{"real": [1, 2, 3, 4], "ref": {"$ref": "#/real"}}"""
-    >>> data = jsonref.loads(json_str)
+    >>> data = jsonref.loads(json_str, load_on_repr=True)
     >>> pprint(data)  # Reference is not evaluated until here
     {'real': [1, 2, 3, 4], 'ref': [1, 2, 3, 4]}
 
 References objects are replaced by lazy lookup proxy objects
 (:class:`JsonRef`.) The proxies are almost completely transparent,
 and support almost all operations on the underlying data. They differ in
-operation only with the built-in function :func:`type`, and with the
-:attr:`JsonRef.__subject__` attribute, which holds the actual object.
+operation with the built-in function :func:`type`, and with the
+:attr:`JsonRef.__subject__` attribute, which holds the actual object, and
+:attr:`JsonRef.__reference__` attribute, which holds the original reference
+object.
 
 .. code-block:: python
 
@@ -40,6 +42,8 @@ operation only with the built-in function :func:`type`, and with the
     >>> # You can access the underlying object with the __subject__ attribute
     >>> type(data["ref"].__subject__)
     <class 'list'>
+    >>> data["ref"].__reference__
+    {'$ref': '#/real'}
     >>> # Other than that you can use the proxy just like the underlying object
     >>> ref = data["ref"]
     >>> isinstance(ref, list)
