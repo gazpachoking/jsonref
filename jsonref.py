@@ -41,7 +41,9 @@ class JsonRef(LazyProxy):
     :attribute __reference__: The original JSON Reference object
 
     """
+
     __notproxied__ = ("__reference__",)
+
     def __init__(
             self, refobj, base_uri=None, deref=None, base_doc=None,
             jsonschema=False, load_on_repr=False
@@ -201,10 +203,10 @@ def replace_json_refs(obj, **kwargs):
                     base_doc=inner_obj)
             return dict((k, inner(inner_obj[k], **kwargs)) for k in inner_obj)
         elif isinstance(inner_obj, list):
-            return [inner(i) for i in inner_obj]
+            return [inner(i, **kwargs) for i in inner_obj]
         return inner_obj
 
-    return inner(obj)
+    return inner(obj, **kwargs)
 
 
 def load(json_file, *args, **kwargs):
