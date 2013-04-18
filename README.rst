@@ -5,15 +5,15 @@ jsonref
 .. image:: https://travis-ci.org/gazpachoking/jsonref.png?branch=master
     :target: https://travis-ci.org/gazpachoking/jsonref
 
-``jsonref`` is an implementation of
+``jsonref`` is a library for automatic dereferencing of
 `JSON Reference <http://tools.ietf.org/id/draft-pbryan-zyp-json-ref-03.html>`_
-for Python (supporting 2.6+ including Python 3).
+objects for Python (supporting 2.6+ including Python 3).
 
 This library lets you use a data structure with JSON reference objects, as if
 the references had been replaced with the referent data. The references are
 evaluated lazily, so nothing is dereferenced until it is used. This also means
 recursive references are supported, as long as you do not try to iterate over
-the entire data structure.
+the entire (infinite) data structure.
 
 .. code-block:: python
 
