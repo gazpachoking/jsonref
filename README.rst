@@ -39,9 +39,11 @@ object.
     >>> # You can tell it is a proxy by using the type function
     >>> type(data["real"]), type(data["ref"])
     (<class 'list'>, <class 'jsonref.JsonRef'>)
-    >>> # You can access the underlying object with the __subject__ attribute
+    >>> # You have direct access to the referent data with the __subject__
+    >>> # attribute
     >>> type(data["ref"].__subject__)
     <class 'list'>
+    # If you need to get at the reference object
     >>> data["ref"].__reference__
     {'$ref': '#/real'}
     >>> # Other than that you can use the proxy just like the underlying object
