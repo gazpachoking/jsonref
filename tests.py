@@ -352,7 +352,7 @@ class TestLazyProxy(unittest.TestCase):
         self.assertEqual(c.decorated(), 2.0)
         self.assertIn("decorated_prop", C.__notproxied__)
         self.assertEqual(c.decorated_prop, 3.0)
-        # Outside the methods it should still be proxied (int has no 'attr')
+        # Outside the methods it should still be proxied (str has no 'attr')
         with self.assertRaises(AttributeError):
             c.attr = 1
         with self.assertRaises(AttributeError):

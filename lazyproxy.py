@@ -42,57 +42,59 @@ _oga = object.__getattribute__
 _osa = object.__setattr__
 
 
-def _do_proxy(method, proxy=False):
+def _no_proxy(method):
+    # Don't double wrap
+    if getattr(method, "_wrapped", False):
+        return method
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         notproxied = _oga(self, "__notproxied__")
-        _osa(self, "__notproxied__", not proxy)
+        _osa(self, "__notproxied__", True)
         try:
             return method(self, *args, **kwargs)
         finally:
             _osa(self, "__notproxied__", notproxied)
+    wrapper._wrapped = True
     return wrapper
 
 
 class ProxyMetaClass(type):
     def __new__(mcs, name, bases, dct):
-        notproxied = set(dct.pop("__notproxied__", ()))
+        newcls = type.__new__(mcs, name, bases, {})
+        newcls.__notproxied__ = set(dct.pop("__notproxied__", ()))
         # Add all the non-proxied attributes from base classes
         for base in bases:
             if hasattr(base, "__notproxied__"):
-                notproxied.update(base.__notproxied__)
-        dct["__notproxied__"] = notproxied
-        newcls = type.__new__(mcs, name, bases, {"__notproxied__": notproxied})
+                newcls.__notproxied__.update(base.__notproxied__)
         for key, val in dct.items():
+            if key == "__dict__":
+                continue
             setattr(newcls, key, val)
         return newcls
 
     def __setattr__(cls, key, value):
-        if key == "__dict__":
-            return
-        do_proxy = False
-        if len(cls.__bases__) == 1 and cls.__bases__[0].__name__ == "_ProxyBase":
-            do_proxy = True
-        if callable(value):
+        if (
+            len(cls.__bases__) == 1 and
+            cls.__bases__[0].__name__ == "_ProxyBase"
+        ):
+            # Don't do any magic on the methods of the base class
+            pass
+        elif callable(value):
             if getattr(value, "__notproxied__", False):
                 cls.__notproxied__ |= set([key])
-            value = _do_proxy(value, do_proxy)
+            value = _no_proxy(value)
         elif isinstance(value, property):
             if getattr(value.fget, "__notproxied__", False):
                 cls.__notproxied__ |= set([key])
-            # Remake properties, with the getter method wrapped
-            value = property(_do_proxy(value.fget, do_proxy), value.fset, value.fdel)
+            # Remake properties, with the underlying functions wrapped
+            fset = _no_proxy(value.fset) if value.fset else value.fset
+            fdel = _no_proxy(value.fdel) if value.fdel else value.fdel
+            value = property(_no_proxy(value.fget), fset, fdel)
         type.__setattr__(cls, key, value)
 
+# Since python 2 and 3 metaclass syntax aren't compatible, create an instance
+# of our metaclass which our Proxy class can inherit from
 _ProxyBase = ProxyMetaClass("_ProxyBase", (object,), {})
-
-def _proxymetaclass(cls):
-    """
-    Class decorator to remake the class as a ProxyMetaClass in both
-    python 2 and 3
-
-    """
-    return ProxyMetaClass(cls.__name__, cls.__bases__, dict(cls.__dict__))
 
 
 def _should_proxy(self, attr):
@@ -103,34 +105,16 @@ def _should_proxy(self, attr):
     return True
 
 
-
-class LazyProxy(_ProxyBase):
+class Proxy(_ProxyBase):
     """
-    Proxy for a lazily-obtained object, that is cached on first use.
+    Proxy for any python object.
 
     """
 
     __notproxied__ = ("__subject__",)
 
-    def __init__(self, func):
-        _osa(self, "__callback__", func)
-
-    @staticmethod
-    def notproxied(func):
-        func.__notproxied__ = True
-        return func
-
-    @property
-    def __subject__(self):
-        try:
-            return _oga(self, "__cache__")
-        except AttributeError:
-            _osa(self, "__cache__", _oga(self, "__callback__")())
-            return _oga(self, "__cache__")
-
-    @__subject__.setter
-    def __subject__(self, value):
-        _osa(self, "__cache__", value)
+    def __init__(self, subject):
+        self.__subject__ = subject
 
     def __getattribute__(self, attr):
         if _should_proxy(self, attr):
@@ -150,6 +134,15 @@ class LazyProxy(_ProxyBase):
     def __call__(self, *args, **kw):
         return self.__subject__(*args, **kw)
 
+    @staticmethod
+    def notproxied(func):
+        """
+        Decorator for methods that should not be proxied
+
+        """
+        func.__notproxied__ = True
+        return func
+
 
 def proxy_func(func, arg_pos=0):
     @wraps(func)
@@ -162,23 +155,56 @@ def proxy_func(func, arg_pos=0):
 
 
 for func in MAGIC_FUNCS:
-    setattr(LazyProxy, "__%s__" % func.__name__, proxy_func(func))
+    setattr(Proxy, "__%s__" % func.__name__, proxy_func(func))
 
 for op in OPERATORS + REFLECTED_OPERATORS:
     magic_meth = "__%s__" % op
-    setattr(LazyProxy, magic_meth, proxy_func(getattr(operator, magic_meth)))
+    setattr(Proxy, magic_meth, proxy_func(getattr(operator, magic_meth)))
 
 # Reflected operators
 for op in REFLECTED_OPERATORS:
     setattr(
-        LazyProxy, "__r%s__" % op,
+        Proxy, "__r%s__" % op,
         proxy_func(getattr(operator, "__%s__" % op), arg_pos=1)
     )
 
 # One offs
 # Only non-operator that needs a reflected version
-LazyProxy.__rdivmod__ = proxy_func(divmod, arg_pos=1)
+Proxy.__rdivmod__ = proxy_func(divmod, arg_pos=1)
 # For python 2.6
-LazyProxy.__nonzero__ = LazyProxy.__bool__
+Proxy.__nonzero__ = Proxy.__bool__
 # pypy is missing __index__ in operator module
-LazyProxy.__index__ = proxy_func(operator.index)
+Proxy.__index__ = proxy_func(operator.index)
+
+
+class CallbackProxy(Proxy):
+    """
+    Proxy for a callback result. Callback is called on each access.
+
+    """
+
+    def __init__(self, callback):
+        self.callback = callback
+
+    @property
+    def __subject__(self):
+        return self.callback()
+
+
+class LazyProxy(CallbackProxy):
+    """
+    Proxy for a callback result, that is cached on first use.
+
+    """
+
+    @property
+    def __subject__(self):
+        try:
+            return self.cache
+        except AttributeError:
+            self.cache = super(LazyProxy, self).__subject__
+            return self.cache
+
+    @__subject__.setter
+    def __subject__(self, value):
+        self.cache = value
