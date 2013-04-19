@@ -46,7 +46,7 @@ class JsonRef(LazyProxy):
 
     def __init__(
             self, refobj, base_uri=None, deref=None, base_doc=None,
-            jsonschema=False, load_on_repr=False
+            jsonschema=False, load_on_repr=None, _stack=()
     ):
         """
         :param refobj: A `dict` representing the JSON Reference object
@@ -56,9 +56,10 @@ class JsonRef(LazyProxy):
             (defaults to `obj`)
         :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
             changes the `base_uri` for references contained within the object
-        :param load_on_repr: If set to False, `repr` calls will not cause
-            unloaded references to be loaded, allowing the repr of recursive
-            refs. (defaults to False)
+        :param load_on_repr: If left unset (or None), a `repr` call will cause
+            a reference to load only until a loop is detected. If set to
+            True/False, `repr` will always or never cause a reference to load
+            (defaults to None)
 
         """
         if not isinstance(refobj.get("$ref"), (str, unicode)):
@@ -69,17 +70,25 @@ class JsonRef(LazyProxy):
         self.deref = deref or dereferencer
         self.jsonschema = jsonschema
         self.load_on_repr = load_on_repr
+        self.stack = list(_stack)
+        # If we encounter a loop
+        self._circular = self.full_uri in self.stack
+        self.stack.append(self.full_uri)
 
     @property
     def _ref_kwargs(self):
         return dict(
             base_uri=self.base_uri, base_doc=self.base_doc, deref=self.deref,
-            jsonschema=self.jsonschema, proxy_repr=self.load_on_repr
+            jsonschema=self.jsonschema, load_on_repr=self.load_on_repr,
+            _stack=self.stack
         )
 
+    @property
+    def full_uri(self):
+        return urlparse.urljoin(self.base_uri, self.__reference__["$ref"])
+
     def callback(self):
-        full_uri = urlparse.urljoin(self.base_uri, self.__reference__["$ref"])
-        uri, fragment = urlparse.urldefrag(full_uri)
+        uri, fragment = urlparse.urldefrag(self.full_uri)
 
         # Relative ref within the base document
         if not uri or uri == self.base_uri and self.base_doc:
@@ -94,7 +103,10 @@ class JsonRef(LazyProxy):
         return replace_json_refs(doc, **kwargs)
 
     def __repr__(self):
-        if self.load_on_repr or hasattr(self, "cache"):
+        load = self.load_on_repr
+        if load is None:
+            load = not self._circular
+        if hasattr(self, "cache") or load:
             return repr(self.__subject__)
         return "JsonRef%r" % self.__reference__
 
@@ -200,7 +212,8 @@ def replace_json_refs(obj, **kwargs):
                     base_uri=urlparse.urljoin(
                         kwargs.get("base_uri", ""), inner_obj["id"]
                     ),
-                    base_doc=inner_obj)
+                    base_doc=inner_obj
+                )
             return dict((k, inner(inner_obj[k], **kwargs)) for k in inner_obj)
         elif isinstance(inner_obj, list):
             return [inner(i, **kwargs) for i in inner_obj]
@@ -224,7 +237,7 @@ def load(json_file, *args, **kwargs):
 
     base_uri = kwargs.pop('base_uri', None)
     dref = kwargs.pop('deref', dereferencer)
-    load_on_repr = kwargs.pop('load_on_repr', False)
+    load_on_repr = kwargs.pop('load_on_repr', None)
     return replace_json_refs(
         json.load(json_file, *args, **kwargs),
         base_uri=base_uri, deref=dref, load_on_repr=load_on_repr
@@ -246,14 +259,14 @@ def loads(json_str, *args, **kwargs):
 
     base_uri = kwargs.pop('base_uri', None)
     deref = kwargs.pop('deref', dereferencer)
-    load_on_repr = kwargs.pop('load_on_repr', False)
+    load_on_repr = kwargs.pop('load_on_repr', None)
     return replace_json_refs(
         json.loads(json_str, *args, **kwargs),
         base_uri=base_uri, deref=deref, load_on_repr=load_on_repr
     )
 
 
-def loaduri(uri, deref=dereferencer, load_on_repr=False):
+def loaduri(uri, deref=dereferencer, load_on_repr=None):
     """
     Load JSON data from ``uri`` with JSON references proxied to their referent
     data.

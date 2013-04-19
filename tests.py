@@ -57,6 +57,32 @@ class TestRefLoading(object):
         assert result == 17
         dereferencer.assert_called_once_with("http://bar.com/foo")
 
+    def test_repr_does_not_loop_by_default(self):
+        json = {"a": ["aoeu", {"$ref": "#/a"}]}
+        assert (
+            repr(replace_json_refs(json)) ==
+            "{'a': ['aoeu', ['aoeu', JsonRef{'$ref': '#/a'}]]}"
+        )
+
+    def test_repr_expands_deep_refs_by_default(self):
+        json = {
+            "a": "string", "b": {"$ref": "#/a"}, "c": {"$ref": "#/b"},
+            "d": {"$ref": "#/c"}, "e": {"$ref": "#/d"}, "f": {"$ref": "#/e"}
+        }
+        assert (
+            repr(sorted(replace_json_refs(json).items())) ==
+            "[('a', 'string'), ('b', 'string'), ('c', 'string'), "
+            "('d', 'string'), ('e', 'string'), ('f', 'string')]"
+        )
+        # Should not expand when set to False explicitly
+        result = replace_json_refs(json, load_on_repr=False)
+        assert (
+            repr(sorted(result.items())) ==
+            "[('a', 'string'), ('b', JsonRef{'$ref': '#/a'}), "
+            "('c', JsonRef{'$ref': '#/b'}), ('d', JsonRef{'$ref': '#/c'}), "
+            "('e', JsonRef{'$ref': '#/d'}), ('f', JsonRef{'$ref': '#/e'})]"
+        )
+
 
 class TestDereferencer(object):
 
