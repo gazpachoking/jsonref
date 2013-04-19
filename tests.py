@@ -9,7 +9,7 @@ except ImportError:
 
 import pytest
 
-from jsonref import PY3, replace_json_refs, loads, Dereferencer
+from jsonref import PY3, replace_json_refs, loads, load, Dereferencer
 from lazyproxy import Proxy, CallbackProxy, LazyProxy
 
 if PY3:
@@ -47,6 +47,11 @@ class TestRefLoading(object):
     def test_loads(self):
         json = """{"a": 1, "b": {"$ref": "#/a"}}"""
         assert loads(json) == {"a": 1, "b": 1}
+
+    def test_load(self, tmpdir):
+        json = """{"a": 1, "b": {"$ref": "#/a"}}"""
+        tmpdir.join("out.json").write(json)
+        assert load(tmpdir.join("out.json")) == {"a": 1, "b": 1}
 
     def test_base_uri_resolution(self):
         json = {"$ref": "foo"}
