@@ -160,18 +160,14 @@ class TestProxies(object):
         params=["Proxy", "CallbackProxy", "LazyProxy"]
     )
     def make_proxify(self, request):
-        def proxify(val):
+        param = request.param
+        def proxify(self, val):
             c = deepcopy(val)
-            if request.param == "Proxy":
+            if param == "Proxy":
                 return Proxy(c)
-            globals().get(request.param)
-            return globals().get(request.param)(lambda: c)
-        self.proxify = proxify
-        return proxify
-
-    def proxify(self, v):
-        c = deepcopy(v)
-        return LazyProxy(lambda: c)
+            globals().get(param)
+            return globals().get(param)(lambda: c)
+        request.cls.proxify = proxify
 
     def check_func(self, func, value, other=_unset):
         """
