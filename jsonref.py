@@ -229,7 +229,7 @@ def load(json_file, *args, **kwargs):
 
     :param json_file: The JSON file to load
     :param base_uri: URI to resolve relative references against
-    :param dereferencer: Callable that takes a URI and returns the parsed JSON
+    :param deref: Callable that takes a URI and returns the parsed JSON
 
     All other arguments will be passed to :func:`json.load`
 
@@ -251,7 +251,7 @@ def loads(json_str, *args, **kwargs):
 
     :param json_str: The JSON string to load
     :param base_uri: URI to resolve relative references against
-    :param dereferencer: Callable that takes a URI and returns the parsed JSON
+    :param deref: Callable that takes a URI and returns the parsed JSON
 
     All other arguments will be passed to :func:`json.loads`
 
@@ -272,7 +272,7 @@ def loaduri(uri, deref=dereferencer, load_on_repr=None):
     data.
 
     :param uri: URI to fetch the JSON from
-    :param dereferencer: Callable that takes a URI and returns the parsed JSON
+    :param deref: Callable that takes a URI and returns the parsed JSON
 
     """
 
