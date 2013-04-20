@@ -78,8 +78,12 @@ class ProxyMetaClass(type):
 
     @staticmethod
     def _no_proxy(method):
-        # Make a wrapped version of method, during which proxying is turned off
-        # Don't double wrap
+        """
+        Returns a wrapped version of `method`, such that proxying is turned off
+        during the method call.
+
+        """
+        # Don't double wrap TODO: Perhaps this is not even needed
         if hasattr(method, "_wrapped"):
             return method
         @wraps(method)
@@ -98,17 +102,12 @@ class ProxyMetaClass(type):
 _ProxyBase = ProxyMetaClass("_ProxyBase", (object,), {})
 
 
-def _should_proxy(self, attr):
-    if attr in type(self).__notproxied__:
-        return False
-    if _oga(self, "__notproxied__") is True:
-        return False
-    return True
-
-
 class Proxy(_ProxyBase):
     """
-    Proxy for any python object.
+    Proxy for any python object. Base class for other proxies.
+
+    :attr:`__subject__` is the only non-proxied attribute, and contains the
+        proxied object
 
     """
 
@@ -117,18 +116,31 @@ class Proxy(_ProxyBase):
     def __init__(self, subject):
         self.__subject__ = subject
 
+    @staticmethod
+    def _should_proxy(self, attr):
+        """
+        Determines whether `attr` should be looked up on the proxied object, or
+        the proxy itself.
+
+        """
+        if attr in type(self).__notproxied__:
+            return False
+        if _oga(self, "__notproxied__") is True:
+            return False
+        return True
+
     def __getattribute__(self, attr):
-        if _should_proxy(self, attr):
+        if Proxy._should_proxy(self, attr):
             return getattr(self.__subject__, attr)
         return _oga(self, attr)
 
     def __setattr__(self, attr, val):
-        if _should_proxy(self, attr):
+        if Proxy._should_proxy(self, attr):
             setattr(self.__subject__, attr, val)
         _osa(self, attr, val)
 
     def __delattr__(self, attr):
-        if _should_proxy(self, attr):
+        if Proxy._should_proxy(self, attr):
             delattr(self.__subject__, attr)
         object.__delattr__(self, attr)
 
@@ -144,38 +156,42 @@ class Proxy(_ProxyBase):
         func.__notproxied__ = True
         return func
 
+    @classmethod
+    def add_proxy_meth(cls, name, func, arg_pos=0):
+        """
+        Add a method `name` to the class, which returns the value of `func`,
+        called with the proxied value inserted at `arg_pos`
 
-def proxy_func(func, arg_pos=0):
-    @wraps(func)
-    def proxied(p, *args, **kwargs):
-        args = list(args)
-        args.insert(arg_pos, p.__subject__)
-        result = func(*args, **kwargs)
-        return result
-    return proxied
+        """
+        @wraps(func)
+        def proxied(self, *args, **kwargs):
+            args = list(args)
+            args.insert(arg_pos, self.__subject__)
+            result = func(*args, **kwargs)
+            return result
+        setattr(cls, name, proxied)
 
 
 for func in MAGIC_FUNCS:
-    setattr(Proxy, "__%s__" % func.__name__, proxy_func(func))
+    Proxy.add_proxy_meth("__%s__" % func.__name__, func)
 
 for op in OPERATORS + REFLECTED_OPERATORS:
     magic_meth = "__%s__" % op
-    setattr(Proxy, magic_meth, proxy_func(getattr(operator, magic_meth)))
+    Proxy.add_proxy_meth(magic_meth, getattr(operator, magic_meth))
 
 # Reflected operators
 for op in REFLECTED_OPERATORS:
-    setattr(
-        Proxy, "__r%s__" % op,
-        proxy_func(getattr(operator, "__%s__" % op), arg_pos=1)
+    Proxy.add_proxy_meth(
+        "__r%s__" % op, getattr(operator, "__%s__" % op), arg_pos=1
     )
 
 # One offs
 # Only non-operator that needs a reflected version
-Proxy.__rdivmod__ = proxy_func(divmod, arg_pos=1)
+Proxy.add_proxy_meth("__rdivmod__", divmod, arg_pos=1)
+# pypy is missing __index__ in operator module
+Proxy.add_proxy_meth("__index__", operator.index)
 # For python 2.6
 Proxy.__nonzero__ = Proxy.__bool__
-# pypy is missing __index__ in operator module
-Proxy.__index__ = proxy_func(operator.index)
 
 
 class CallbackProxy(Proxy):
