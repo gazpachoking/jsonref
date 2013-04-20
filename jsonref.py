@@ -23,7 +23,7 @@ try:
 except ImportError:
     requests = None
 
-from lazyproxy import LazyProxy
+from proxytypes import LazyProxy
 
 __version__ = "0.1-dev"
 

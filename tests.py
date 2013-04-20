@@ -10,7 +10,7 @@ except ImportError:
 import pytest
 
 from jsonref import PY3, replace_json_refs, loads, load, Dereferencer
-from lazyproxy import Proxy, CallbackProxy, LazyProxy
+from proxytypes import Proxy, CallbackProxy, LazyProxy
 
 if PY3:
     long = int

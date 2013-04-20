@@ -1,6 +1,6 @@
 """
-Based on the implementation here:
-https://pypi.python.org/pypi/ProxyTypes/0.9
+Based on the implementation here by Phillip J. Eby:
+https://pypi.python.org/pypi/ProxyTypes
 """
 
 from functools import wraps
