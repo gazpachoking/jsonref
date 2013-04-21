@@ -4,9 +4,9 @@ import sys
 import warnings
 
 try:
-    from collections import MutableMapping
+    from collections import Mapping, MutableMapping, Sequence
 except ImportError:
-    from collections.abc import MutableMapping
+    from collections.abc import Mapping, MutableMapping, Sequence
 
 PY3 = sys.version_info[0] >= 3
 
@@ -15,6 +15,7 @@ if PY3:
     from urllib.parse import unquote
     from urllib.request import urlopen
     unicode = str
+    basestring = str
 else:
     import urlparse
     from urllib import unquote
@@ -48,6 +49,7 @@ class JsonRef(LazyProxy):
     """
 
     __notproxied__ = ("__reference__",)
+
     def __new__(cls, obj, **kwargs):
         """
         When a :class:`JsonRef` is instantiated with an `obj` which is not a
@@ -59,17 +61,17 @@ class JsonRef(LazyProxy):
 
         kwargs.setdefault('base_doc', obj)
         try:
-            if not isinstance(obj["$ref"], (str, unicode)):
+            if not isinstance(obj["$ref"], basestring):
                 raise TypeError
         except (TypeError, LookupError):
             pass
         else:
             return super(JsonRef, cls).__new__(cls)
 
-        if isinstance(obj, dict):
+        if isinstance(obj, Mapping):
             if (
                     kwargs.get("jsonschema") and
-                    isinstance(obj.get("id"), (str, unicode))
+                    isinstance(obj.get("id"), basestring)
             ):
                 kwargs.update(
                     base_uri=urlparse.urljoin(
@@ -77,9 +79,9 @@ class JsonRef(LazyProxy):
                     ),
                     base_doc=obj
                 )
-            return dict((k, JsonRef(obj[k], **kwargs)) for k in obj)
-        elif isinstance(obj, list):
-            return [JsonRef(i, **kwargs) for i in obj]
+            return type(obj)((k, JsonRef(obj[k], **kwargs)) for k in obj)
+        elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
+            return type(obj)(JsonRef(i, **kwargs) for i in obj)
         return obj
 
     def __init__(
@@ -100,7 +102,7 @@ class JsonRef(LazyProxy):
             (defaults to None)
 
         """
-        if not isinstance(refobj.get("$ref"), (str, unicode)):
+        if not isinstance(refobj.get("$ref"), basestring):
             raise ValueError("Not a valid json reference object: %s" % refobj)
         self.__reference__ = refobj
         self.base_doc=base_doc
