@@ -44,7 +44,7 @@ _osa = object.__setattr__
 
 class ProxyMetaClass(type):
     def __new__(mcs, name, bases, dct):
-        newcls = type.__new__(mcs, name, bases, dct)
+        newcls = super(ProxyMetaClass, mcs).__new__(mcs, name, bases, dct)
         newcls.__notproxied__ = set(dct.pop("__notproxied__", ()))
         # Add all the non-proxied attributes from base classes
         for base in bases:
@@ -74,7 +74,7 @@ class ProxyMetaClass(type):
             fset = cls._no_proxy(value.fset) if value.fset else value.fset
             fdel = cls._no_proxy(value.fdel) if value.fdel else value.fdel
             value = property(cls._no_proxy(value.fget), fset, fdel)
-        type.__setattr__(cls, attr, value)
+        super(ProxyMetaClass, cls).__setattr__(attr, value)
 
     @staticmethod
     def _no_proxy(method):
