@@ -1,3 +1,4 @@
+import codecs
 from copy import deepcopy
 import operator
 import json
@@ -9,7 +10,7 @@ except ImportError:
 
 import pytest
 
-from jsonref import PY3, JsonRef, loads, load, JsonLoader, dumps
+from jsonref import PY3, JsonRef, loads, load, JsonLoader, dumps, dump
 from proxytypes import Proxy, CallbackProxy, LazyProxy
 
 if PY3:
@@ -92,8 +93,8 @@ class TestApi(object):
 
     def test_load(self, tmpdir):
         json = """{"a": 1, "b": {"$ref": "#/a"}}"""
-        tmpdir.join("out.json").write(json)
-        assert load(tmpdir.join("out.json")) == {"a": 1, "b": 1}
+        tmpdir.join("in.json").write(json)
+        assert load(tmpdir.join("in.json")) == {"a": 1, "b": 1}
 
     def test_dumps(self):
         json = """[1, 2, {"$ref": "#/0"}, 3]"""
@@ -102,6 +103,15 @@ class TestApi(object):
         assert str(loaded) == "[1, 2, 1, 3]"
         # Our dump function should write the original reference
         assert dumps(loaded) == json
+
+    def test_dump(self, tmpdir):
+        json = """[1, 2, {"$ref": "#/0"}, 3]"""
+        loaded = loads(json)
+        # The string version should load the reference
+        assert str(loaded) == "[1, 2, 1, 3]"
+        dump(loaded, tmpdir.join("out.json"))
+        # Our dump function should write the original reference
+        assert tmpdir.join("out.json").read() == json
 
 
 class TestJsonLoader(object):

@@ -330,8 +330,9 @@ def dump(obj, fp, **kwargs):
     :param kwargs: Keyword arguments are the same as to :func:`json.dump`
 
     """
-    kwargs["cls"] = _ref_encoder_factory(kwargs.get("cls", json.JSONEncoder))
-    return json.dump(obj, fp, **kwargs)
+    # Strangely, json.dumps does not use the custom serialization from our
+    # encoder on python 2.7+. Instead just write json.dumps output to a file.
+    fp.write(dumps(obj, **kwargs))
 
 
 def dumps(obj, **kwargs):
