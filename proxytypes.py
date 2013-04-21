@@ -44,14 +44,14 @@ _osa = object.__setattr__
 
 class ProxyMetaClass(type):
     def __new__(mcs, name, bases, dct):
-        newcls = type.__new__(mcs, name, bases, {})
+        newcls = type.__new__(mcs, name, bases, dct)
         newcls.__notproxied__ = set(dct.pop("__notproxied__", ()))
         # Add all the non-proxied attributes from base classes
         for base in bases:
             if hasattr(base, "__notproxied__"):
                 newcls.__notproxied__.update(base.__notproxied__)
         for key, val in dct.items():
-            if key == "__dict__":
+            if key in ["__dict__", "__new__"]:
                 continue
             setattr(newcls, key, val)
         return newcls
