@@ -325,13 +325,7 @@ def dump(obj, fp, **kwargs):
     :param kwargs: Keyword arguments are the same as to :func:`json.dump`
 
     """
-    cls = kwargs.pop("cls", json.JSONEncoder)
-    class JSONRefEncoder(cls):
-        def default(self, o):
-            if hasattr(o, "__reference__"):
-                return o.__reference__
-            super(JSONRefEncoder, self).default(o)
-    kwargs["cls"] = JSONRefEncoder
+    kwargs["cls"] = _ref_encoder_factory(kwargs.get("cls", json.JSONEncoder))
     return json.dump(obj, fp, **kwargs)
 
 
@@ -344,11 +338,19 @@ def dumps(obj, **kwargs):
     :param kwargs: Keyword arguments are the same as to :func:`json.dumps`
 
     """
-    cls = kwargs.pop("cls", json.JSONEncoder)
+    kwargs["cls"] = _ref_encoder_factory(kwargs.get("cls", json.JSONEncoder))
+    return json.dumps(obj, **kwargs)
+
+
+def _ref_encoder_factory(cls):
     class JSONRefEncoder(cls):
         def default(self, o):
             if hasattr(o, "__reference__"):
                 return o.__reference__
-            super(JSONRefEncoder, self).default(o)
-    kwargs["cls"] = JSONRefEncoder
-    return json.dumps(obj, **kwargs)
+            return super(JSONRefEncoder, cls).default(o)
+        # Python 2.6 doesn't work with the default method
+        def _iterencode(self, o, *args, **kwargs):
+            if hasattr(o, "__reference__"):
+                o = o.__reference__
+            return super(JSONRefEncoder, self)._iterencode(o, *args, **kwargs)
+    return JSONRefEncoder
