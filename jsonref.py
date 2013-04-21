@@ -353,4 +353,9 @@ def _ref_encoder_factory(cls):
             if hasattr(o, "__reference__"):
                 o = o.__reference__
             return super(JSONRefEncoder, self)._iterencode(o, *args, **kwargs)
+        # Pypy doesn't work with either of the other methods
+        def _encode(self, o, *args, **kwargs):
+            if hasattr(o, "__reference__"):
+                o = o.__reference__
+            return super(JSONRefEncoder, self)._encode(o, *args, **kwargs)
     return JSONRefEncoder
