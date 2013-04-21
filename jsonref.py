@@ -1,4 +1,5 @@
 import json
+import operator
 import sys
 import warnings
 
@@ -15,10 +16,12 @@ if PY3:
     from urllib.request import urlopen
     unicode = str
     basestring = str
+    iteritems = operator.methodcaller("items")
 else:
     import urlparse
     from urllib import unquote
     from urllib2 import urlopen
+    iteritems = operator.methodcaller("iteritems")
 
 try:
     # If requests >=1.0 is available, we will use it
@@ -60,6 +63,13 @@ class JsonRef(LazyProxy):
 
         kwargs.setdefault('base_doc', obj)
         try:
+            if kwargs.get("jsonschema") and isinstance(obj["id"], basestring):
+                kwargs.update(
+                    base_uri=urlparse.urljoin(
+                        kwargs.get("base_uri", ""), obj["id"]
+                    ),
+                    base_doc=obj
+                )
             if not isinstance(obj["$ref"], basestring):
                 raise TypeError
         except (TypeError, LookupError):
@@ -67,20 +77,15 @@ class JsonRef(LazyProxy):
         else:
             return super(JsonRef, cls).__new__(cls)
 
+        # If our obj was not a json reference object, iterate through it,
+        # replacing children with JsonRefs
         if isinstance(obj, Mapping):
-            if (
-                    kwargs.get("jsonschema") and
-                    isinstance(obj.get("id"), basestring)
-            ):
-                kwargs.update(
-                    base_uri=urlparse.urljoin(
-                        kwargs.get("base_uri", ""), obj["id"]
-                    ),
-                    base_doc=obj
-                )
-            return type(obj)((k, JsonRef(obj[k], **kwargs)) for k in obj)
+            return type(obj)(
+                (k, JsonRef(v, **kwargs)) for k, v in iteritems(obj)
+            )
         elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
             return type(obj)(JsonRef(i, **kwargs) for i in obj)
+        # If obj was not a list or dict, just return it
         return obj
 
     def __init__(
