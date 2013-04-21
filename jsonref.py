@@ -1,4 +1,3 @@
-import inspect
 import json
 import sys
 import warnings
@@ -153,14 +152,23 @@ class JsonRef(LazyProxy):
 
         """
 
+        def fail():
+            raise LookupError("Unresolvable JSON pointer: %r" % pointer)
+
         parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
 
         for part in parts:
             part = part.replace("~1", "/").replace("~0", "~")
-            if part not in document:
-                raise LookupError(
-                    "Unresolvable JSON pointer: %r" % pointer
-                )
+            if isinstance(document, Mapping):
+                if part not in document:
+                    fail()
+            else:
+                try:
+                    part = int(part)
+                except ValueError:
+                    fail()
+                if part >= len(document):
+                    fail()
             document = document[part]
         return document
 
@@ -306,3 +314,41 @@ def load_uri(uri, ref_kwargs=(), **kwargs):
     ref_kwargs.setdefault("base_uri", uri)
     loader = ref_kwargs.pop("loader", jsonloader)
     return JsonRef(loader(uri, **kwargs), **ref_kwargs)
+
+
+def dump(obj, fp, **kwargs):
+    """
+    Dump JSON for `obj` to `fp`, which may contain :class:`JsonRef` objects.
+    `JsonRef` objects will be dumped as the original reference object they were
+    created from.
+
+    :param kwargs: Keyword arguments are the same as to :func:`json.dump`
+
+    """
+    cls = kwargs.pop("cls", json.JSONEncoder)
+    class JSONRefEncoder(cls):
+        def default(self, o):
+            if hasattr(o, "__reference__"):
+                return o.__reference__
+            super(JSONRefEncoder, self).default(o)
+    kwargs["cls"] = JSONRefEncoder
+    return json.dump(obj, fp, **kwargs)
+
+
+def dumps(obj, **kwargs):
+    """
+    Dump JSON for `obj` to a string, which may contain :class:`JsonRef`
+    objects. `JsonRef` objects will be dumped as the original reference object
+    they were created from.
+
+    :param kwargs: Keyword arguments are the same as to :func:`json.dumps`
+
+    """
+    cls = kwargs.pop("cls", json.JSONEncoder)
+    class JSONRefEncoder(cls):
+        def default(self, o):
+            if hasattr(o, "__reference__"):
+                return o.__reference__
+            super(JSONRefEncoder, self).default(o)
+    kwargs["cls"] = JSONRefEncoder
+    return json.dumps(obj, **kwargs)
