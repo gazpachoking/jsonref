@@ -9,7 +9,7 @@ except ImportError:
 
 import pytest
 
-from jsonref import PY3, replace_json_refs, loads, load, Dereferencer
+from jsonref import PY3, JsonRef, loads, load, JsonLoader
 from proxytypes import Proxy, CallbackProxy, LazyProxy
 
 if PY3:
@@ -23,26 +23,61 @@ else:
     idiv = operator.idiv
 
 
-class TestRefLoading(object):
+class TestJsonRef(object):
 
     def test_local_ref(self):
         json = {"a": 5, "b": {"$ref": "#/a"}}
-        assert replace_json_refs(json)["b"] == json["a"]
+        assert JsonRef(json)["b"] == json["a"]
 
-    def test_custom_dereferencer(self):
+    def test_custom_loader(self):
         data = {"$ref": "foo"}
-        dereferencer = mock.Mock(return_value=42)
-        result = replace_json_refs(data, deref=dereferencer)
-        # Dereferencing should not occur until we do something with result
-        assert dereferencer.call_count == 0
+        loader = mock.Mock(return_value=42)
+        result = JsonRef(data, loader=loader)
+        # Loading should not occur until we do something with result
+        assert loader.call_count == 0
         # Make sure we got the right result
         assert result == 42
         # Do several things with result
         result + 3
         repr(result)
         result *= 2
-        # Make sure we only called the dereferencer once
-        dereferencer.assert_called_once_with("foo")
+        # Make sure we only called the loader once
+        loader.assert_called_once_with("foo")
+
+    def test_base_uri_resolution(self):
+        json = {"$ref": "foo"}
+        dereferencer = mock.Mock(return_value=17)
+        result = JsonRef(
+            json, base_uri="http://bar.com", loader=dereferencer
+        )
+        assert result == 17
+        dereferencer.assert_called_once_with("http://bar.com/foo")
+
+    def test_repr_does_not_loop_by_default(self):
+        json = {"a": ["aoeu", {"$ref": "#/a"}]}
+        assert (
+            repr(JsonRef(json)) ==
+            "{'a': ['aoeu', ['aoeu', JsonRef{'$ref': '#/a'}]]}"
+        )
+
+    def test_repr_expands_deep_refs_by_default(self):
+        json = {
+            "a": "string", "b": {"$ref": "#/a"}, "c": {"$ref": "#/b"},
+            "d": {"$ref": "#/c"}, "e": {"$ref": "#/d"}, "f": {"$ref": "#/e"}
+        }
+        assert (
+            repr(sorted(JsonRef(json).items())) ==
+            "[('a', 'string'), ('b', 'string'), ('c', 'string'), "
+            "('d', 'string'), ('e', 'string'), ('f', 'string')]"
+        )
+        # Should not expand when set to False explicitly
+        result = JsonRef(json, load_on_repr=False)
+        assert (
+            repr(sorted(result.items())) ==
+            "[('a', 'string'), ('b', JsonRef{'$ref': '#/a'}), "
+            "('c', JsonRef{'$ref': '#/b'}), ('d', JsonRef{'$ref': '#/c'}), "
+            "('e', JsonRef{'$ref': '#/d'}), ('f', JsonRef{'$ref': '#/e'})]"
+        )
 
     def test_loads(self):
         json = """{"a": 1, "b": {"$ref": "#/a"}}"""
@@ -53,55 +88,20 @@ class TestRefLoading(object):
         tmpdir.join("out.json").write(json)
         assert load(tmpdir.join("out.json")) == {"a": 1, "b": 1}
 
-    def test_base_uri_resolution(self):
-        json = {"$ref": "foo"}
-        dereferencer = mock.Mock(return_value=17)
-        result = replace_json_refs(
-            json, base_uri="http://bar.com", deref=dereferencer
-        )
-        assert result == 17
-        dereferencer.assert_called_once_with("http://bar.com/foo")
 
-    def test_repr_does_not_loop_by_default(self):
-        json = {"a": ["aoeu", {"$ref": "#/a"}]}
-        assert (
-            repr(replace_json_refs(json)) ==
-            "{'a': ['aoeu', ['aoeu', JsonRef{'$ref': '#/a'}]]}"
-        )
-
-    def test_repr_expands_deep_refs_by_default(self):
-        json = {
-            "a": "string", "b": {"$ref": "#/a"}, "c": {"$ref": "#/b"},
-            "d": {"$ref": "#/c"}, "e": {"$ref": "#/d"}, "f": {"$ref": "#/e"}
-        }
-        assert (
-            repr(sorted(replace_json_refs(json).items())) ==
-            "[('a', 'string'), ('b', 'string'), ('c', 'string'), "
-            "('d', 'string'), ('e', 'string'), ('f', 'string')]"
-        )
-        # Should not expand when set to False explicitly
-        result = replace_json_refs(json, load_on_repr=False)
-        assert (
-            repr(sorted(result.items())) ==
-            "[('a', 'string'), ('b', JsonRef{'$ref': '#/a'}), "
-            "('c', JsonRef{'$ref': '#/b'}), ('d', JsonRef{'$ref': '#/c'}), "
-            "('e', JsonRef{'$ref': '#/d'}), ('f', JsonRef{'$ref': '#/e'})]"
-        )
-
-
-class TestDereferencer(object):
+class TestJsonLoader(object):
 
     base_uri = ""
     stored_uri = "foo://stored"
     stored_schema = {"stored": "schema"}
 
     @pytest.fixture(scope="function", autouse=True)
-    def deferencer(self):
-        self.store = {self.stored_uri: self.stored_schema}
-        self.dereferencer = Dereferencer(store=self.store)
+    def set_loader(self, request):
+        request.cls.store = {self.stored_uri: self.stored_schema}
+        request.cls.loader = JsonLoader(store=request.cls.store)
 
     def test_it_retrieves_stored_refs(self):
-        result = self.dereferencer(self.stored_uri)
+        result = self.loader(self.stored_uri)
         assert result is self.stored_schema
 
     def test_it_retrieves_unstored_refs_via_requests(self):
@@ -110,7 +110,7 @@ class TestDereferencer(object):
 
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
-            result = self.dereferencer(ref)
+            result = self.loader(ref)
             assert result == data
         requests.get.assert_called_once_with("http://bar")
 
@@ -123,7 +123,7 @@ class TestDereferencer(object):
                 urlopen.return_value.read.return_value = (
                     json.dumps(data).encode("utf8")
                 )
-                result = self.dereferencer(ref)
+                result = self.loader(ref)
                 assert result == data
         urlopen.assert_called_once_with("http://bar")
 
@@ -133,7 +133,7 @@ class TestDereferencer(object):
 
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
-            dereferencer = Dereferencer(cache_results=True)
+            dereferencer = JsonLoader(cache_results=True)
             dereferencer(ref)
             dereferencer(ref)
         requests.get.assert_called_once_with(ref)
@@ -144,11 +144,10 @@ class TestDereferencer(object):
 
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
-            dereferencer = Dereferencer(cache_results=False)
+            dereferencer = JsonLoader(cache_results=False)
             dereferencer(ref)
             dereferencer(ref)
         assert requests.get.call_count == 2
-
 
 
 _unset = object()

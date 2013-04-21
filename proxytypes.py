@@ -56,25 +56,25 @@ class ProxyMetaClass(type):
             setattr(newcls, key, val)
         return newcls
 
-    def __setattr__(cls, key, value):
-        if (
-            len(cls.__bases__) == 1 and
-            cls.__bases__[0].__name__ == "_ProxyBase"
-        ):
-            # Don't do any magic on the methods of the base class
+    def __setattr__(cls, attr, value):
+        # Don't do any magic on the methods of the base Proxy class or the
+        # __new__ static method
+        if cls.__bases__[0].__name__ == "_ProxyBase" or attr == "__new__":
             pass
         elif callable(value):
             if getattr(value, "__notproxied__", False):
-                cls.__notproxied__ |= set([key])
-            value = cls._no_proxy(value)
+                cls.__notproxied__.add(attr)
+            # Don't wrap staticmethods or classmethods
+            if not isinstance(value, (staticmethod, classmethod)):
+                value = cls._no_proxy(value)
         elif isinstance(value, property):
             if getattr(value.fget, "__notproxied__", False):
-                cls.__notproxied__ |= set([key])
+                cls.__notproxied__.add(attr)
             # Remake properties, with the underlying functions wrapped
             fset = cls._no_proxy(value.fset) if value.fset else value.fset
             fdel = cls._no_proxy(value.fdel) if value.fdel else value.fdel
             value = property(cls._no_proxy(value.fget), fset, fdel)
-        type.__setattr__(cls, key, value)
+        type.__setattr__(cls, attr, value)
 
     @staticmethod
     def _no_proxy(method):
@@ -83,9 +83,6 @@ class ProxyMetaClass(type):
         during the method call.
 
         """
-        # Don't double wrap TODO: Perhaps this is not even needed
-        if hasattr(method, "_wrapped"):
-            return method
         @wraps(method)
         def wrapper(self, *args, **kwargs):
             notproxied = _oga(self, "__notproxied__")
@@ -94,12 +91,11 @@ class ProxyMetaClass(type):
                 return method(self, *args, **kwargs)
             finally:
                 _osa(self, "__notproxied__", notproxied)
-        wrapper._wrapped = True
         return wrapper
 
 # Since python 2 and 3 metaclass syntax aren't compatible, create an instance
 # of our metaclass which our Proxy class can inherit from
-_ProxyBase = ProxyMetaClass("_ProxyBase", (object,), {})
+_ProxyBase = ProxyMetaClass("_ProxyBase", (), {})
 
 
 class Proxy(_ProxyBase):

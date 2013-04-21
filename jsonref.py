@@ -1,5 +1,7 @@
+import inspect
 import json
 import sys
+import warnings
 
 try:
     from collections import MutableMapping
@@ -19,7 +21,10 @@ else:
     from urllib2 import urlopen
 
 try:
+    # If requests >=1.0 is available, we will use it
     import requests
+    if not callable(requests.Response.json):
+        requests = None
 except ImportError:
     requests = None
 
@@ -43,15 +48,48 @@ class JsonRef(LazyProxy):
     """
 
     __notproxied__ = ("__reference__",)
+    def __new__(cls, obj, **kwargs):
+        """
+        When a :class:`JsonRef` is instantiated with an `obj` which is not a
+        JSON reference object, it returns a deep copy of `obj` with all
+        contained JSON reference objects replaced with :class:`JsonRef`
+        objects.
+
+        """
+
+        kwargs.setdefault('base_doc', obj)
+        try:
+            if not isinstance(obj["$ref"], (str, unicode)):
+                raise TypeError
+        except (TypeError, LookupError):
+            pass
+        else:
+            return super(JsonRef, cls).__new__(cls)
+
+        if isinstance(obj, dict):
+            if (
+                    kwargs.get("jsonschema") and
+                    isinstance(obj.get("id"), (str, unicode))
+            ):
+                kwargs.update(
+                    base_uri=urlparse.urljoin(
+                        kwargs.get("base_uri", ""), obj["id"]
+                    ),
+                    base_doc=obj
+                )
+            return dict((k, JsonRef(obj[k], **kwargs)) for k in obj)
+        elif isinstance(obj, list):
+            return [JsonRef(i, **kwargs) for i in obj]
+        return obj
 
     def __init__(
-            self, refobj, base_uri=None, deref=None, base_doc=None,
-            jsonschema=False, load_on_repr=None, _stack=()
+            self, refobj, base_uri=None, loader=None, loader_kwargs=(),
+            base_doc=None, jsonschema=False, load_on_repr=None, _stack=()
     ):
         """
         :param refobj: A `dict` representing the JSON Reference object
         :param base_uri: URI to resolve relative references against
-        :param deref: Callable that takes a URI and returns the parsed JSON
+        :param loader: Callable that takes a URI and returns the parsed JSON
         :param base_doc: Document at `base_uri` for local dereferencing
             (defaults to `obj`)
         :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
@@ -67,7 +105,8 @@ class JsonRef(LazyProxy):
         self.__reference__ = refobj
         self.base_doc=base_doc
         self.base_uri = base_uri
-        self.deref = deref or dereferencer
+        self.loader = loader or jsonloader
+        self.loader_kwargs = dict(loader_kwargs)
         self.jsonschema = jsonschema
         self.load_on_repr = load_on_repr
         self.stack = list(_stack)
@@ -78,9 +117,9 @@ class JsonRef(LazyProxy):
     @property
     def _ref_kwargs(self):
         return dict(
-            base_uri=self.base_uri, base_doc=self.base_doc, deref=self.deref,
-            jsonschema=self.jsonschema, load_on_repr=self.load_on_repr,
-            _stack=self.stack
+            base_uri=self.base_uri, base_doc=self.base_doc, loader=self.loader,
+            loader_kwargs=self.loader_kwargs, jsonschema=self.jsonschema,
+            load_on_repr=self.load_on_repr, _stack=self.stack
         )
 
     @property
@@ -92,15 +131,36 @@ class JsonRef(LazyProxy):
 
         # Relative ref within the base document
         if not uri or uri == self.base_uri and self.base_doc:
-            doc = resolve_pointer(self.base_doc, fragment)
-            return replace_json_refs(doc, **self._ref_kwargs)
+            doc = self.resolve_pointer(self.base_doc, fragment)
+            return JsonRef(doc, **self._ref_kwargs)
 
         # Remote ref
-        base_doc = self.deref(uri)
-        doc = resolve_pointer(base_doc, fragment)
+        base_doc = self.loader(uri, **self.loader_kwargs)
+        doc = self.resolve_pointer(base_doc, fragment)
         kwargs = self._ref_kwargs
         kwargs.update(base_doc=base_doc, base_uri=uri)
-        return replace_json_refs(doc, **kwargs)
+        return JsonRef(doc, **kwargs)
+
+    @staticmethod
+    def resolve_pointer(document, pointer):
+        """
+        Resolve a json pointer ``pointer`` within the referenced ``document``.
+
+        :argument document: the referent document
+        :argument str pointer: a json pointer URI fragment to resolve within it
+
+        """
+
+        parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
+
+        for part in parts:
+            part = part.replace("~1", "/").replace("~0", "~")
+            if part not in document:
+                raise LookupError(
+                    "Unresolvable JSON pointer: %r" % pointer
+                )
+            document = document[part]
+        return document
 
     def __repr__(self):
         load = self.load_on_repr
@@ -143,160 +203,104 @@ class _URIDict(MutableMapping):
         return repr(self.store)
 
 
-class Dereferencer(object):
+class JsonLoader(object):
+    """
+    Provides a callable which takes a URI, and returns the loaded JSON referred
+    to by that URI.
+
+    """
     def __init__(self, store=(), cache_results=True):
+        """
+        :param store: A pre-populated dictionary matching URIs to loaded JSON
+            documents
+        :param cache_results: If this is set to false, the internal cache of
+            loaded JSON documents is not used
+
+        """
         self.store = _URIDict(store)
         self.cache_results = cache_results
 
-    def __call__(self, uri):
+    def __call__(self, uri, **kwargs):
+        """
+        Return the loaded JSON referred to by `uri`
+
+        :param uri: The URI of the JSON document to load
+        :param kwargs: Keyword arguments passed to :func:`json.loads`
+
+        """
         if uri in self.store:
             return self.store[uri]
         else:
-            result = self.get_remote_json(uri)
+            result = self.get_remote_json(uri, **kwargs)
             if self.cache_results:
                 self.store[uri] = result
             return result
 
-    def get_remote_json(self, uri):
+    def get_remote_json(self, uri, **kwargs):
         scheme = urlparse.urlsplit(uri).scheme
 
-        if (
-                scheme in ["http", "https"] and
-                requests and getattr(requests.Response, "json", None)
-        ):
+        if scheme in ["http", "https"] and requests:
             # Prefer requests, it has better encoding detection
-            if callable(requests.Response.json):
+            try:
+                result = requests.get(uri).json(**kwargs)
+            except TypeError:
+                warnings.warn(
+                    "requests >=1.2 required for custom kwargs to json.loads"
+                )
                 result = requests.get(uri).json()
-            else:
-                result = requests.get(uri).json
         else:
             # Otherwise, pass off to urllib and assume utf-8
-            result = json.loads(urlopen(uri).read().decode("utf-8"))
+            result = json.loads(urlopen(uri).read().decode("utf-8"), **kwargs)
 
         return result
 
-dereferencer = Dereferencer()
+jsonloader = JsonLoader()
 
 
-def replace_json_refs(obj, **kwargs):
-    """
-    Returns a deep copy of `obj` with all contained JSON reference objects
-    replaced by :class:`JsonRef` objects.
-
-    :param obj: Python data structure consisting of JSON primitive types
-
-    The following arguments must all be specified as keywords.
-
-    :param base_uri: URI to resolve relative references against
-    :param deref: Callable that takes a URI and returns the parsed JSON
-    :param base_doc: Document at `base_uri` for local dereferencing
-        (defaults to `obj`)
-    :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword changes
-        the `base_uri` for references contained within the object
-    :param load_on_repr: If set to False, `repr` calls will not cause unloaded
-        references to be loaded, allowing the repr of recursive refs.
-        (defaults to False)
-
-    """
-
-    kwargs.setdefault('base_doc', obj)
-    def inner(inner_obj, **kwargs):
-        if isinstance(inner_obj, dict):
-            if isinstance(inner_obj.get("$ref"), (str, unicode)):
-                return JsonRef(inner_obj, **kwargs)
-            if (
-                    kwargs.get("jsonschema") and
-                    isinstance(inner_obj.get("id"), (str, unicode))
-            ):
-                kwargs.update(
-                    base_uri=urlparse.urljoin(
-                        kwargs.get("base_uri", ""), inner_obj["id"]
-                    ),
-                    base_doc=inner_obj
-                )
-            return dict((k, inner(inner_obj[k], **kwargs)) for k in inner_obj)
-        elif isinstance(inner_obj, list):
-            return [inner(i, **kwargs) for i in inner_obj]
-        return inner_obj
-
-    return inner(obj, **kwargs)
-
-
-def load(json_file, *args, **kwargs):
+def load(json_file, ref_kwargs=(), **kwargs):
     """
     Drop in replacement for :func:`json.load`, where JSON references are
     proxied to their referent data.
 
-    :param json_file: The JSON file to load
-    :param base_uri: URI to resolve relative references against
-    :param deref: Callable that takes a URI and returns the parsed JSON
+    :param ref_kwargs: A dict of keyword arguments to pass to :class:`JsonRef`
 
-    All other arguments will be passed to :func:`json.load`
+    All other keyword arguments will be passed to :func:`json.load`
 
     """
 
-    base_uri = kwargs.pop('base_uri', None)
-    dref = kwargs.pop('deref', dereferencer)
-    load_on_repr = kwargs.pop('load_on_repr', None)
-    return replace_json_refs(
-        json.load(json_file, *args, **kwargs),
-        base_uri=base_uri, deref=dref, load_on_repr=load_on_repr
-    )
+    ref_kwargs = dict(ref_kwargs)
+    ref_kwargs.setdefault("loader_kwargs", kwargs)
+    return JsonRef(json.load(json_file, **kwargs), **ref_kwargs)
 
 
-def loads(json_str, *args, **kwargs):
+def loads(json_str, ref_kwargs=(), **kwargs):
     """
     Drop in replacement for :func:`json.loads`, where JSON references are
     proxied to their referent data.
 
-    :param json_str: The JSON string to load
-    :param base_uri: URI to resolve relative references against
-    :param deref: Callable that takes a URI and returns the parsed JSON
+    :param ref_kwargs: A dict of keyword arguments to pass to :class:`JsonRef`
 
-    All other arguments will be passed to :func:`json.loads`
+    All other keyword arguments will be passed to :func:`json.loads`
 
     """
 
-    base_uri = kwargs.pop('base_uri', None)
-    deref = kwargs.pop('deref', dereferencer)
-    load_on_repr = kwargs.pop('load_on_repr', None)
-    return replace_json_refs(
-        json.loads(json_str, *args, **kwargs),
-        base_uri=base_uri, deref=deref, load_on_repr=load_on_repr
-    )
+    ref_kwargs = dict(ref_kwargs)
+    ref_kwargs.setdefault("loader_kwargs", kwargs)
+    return JsonRef(json.loads(json_str, **kwargs), **ref_kwargs)
 
 
-def loaduri(uri, deref=dereferencer, load_on_repr=None):
+def load_uri(uri, ref_kwargs=(), **kwargs):
     """
     Load JSON data from ``uri`` with JSON references proxied to their referent
     data.
 
     :param uri: URI to fetch the JSON from
-    :param deref: Callable that takes a URI and returns the parsed JSON
+    :param loader: Callable that takes a URI and returns the parsed JSON
 
     """
 
-    return replace_json_refs(
-        deref(uri), base_uri=uri, deref=deref, load_on_repr=load_on_repr
-    )
-
-
-def resolve_pointer(document, pointer):
-    """
-    Resolve a json pointer ``pointer`` within the referenced ``document``.
-
-    :argument document: the referent document
-    :argument str pointer: a json pointer URI fragment to resolve within it
-
-    """
-
-    parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
-
-    for part in parts:
-        part = part.replace("~1", "/").replace("~0", "~")
-        if part not in document:
-            raise LookupError(
-                "Unresolvable JSON pointer: %r" % pointer
-            )
-        document = document[part]
-    return document
+    ref_kwargs = dict(ref_kwargs)
+    ref_kwargs.setdefault("loader_kwargs", kwargs)
+    ref_kwargs.setdefault("base_uri", uri)
+    loader = ref_kwargs.pop("loader", jsonloader)
+    return JsonRef(loader(uri, **kwargs), **ref_kwargs)
