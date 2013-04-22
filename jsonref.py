@@ -64,11 +64,13 @@ class JsonRef(LazyProxy):
 
     .. attribute:: __subject__
 
-        Contains the referent data
+        Contains the referent data. Accessing this will cause the data to be
+        loaded if it has not already been.
 
     .. attribute:: __reference__
 
-        Contains the original JSON Reference object
+        Contains the original JSON Reference object. Accessing this attribute
+        will not cause the referent data to be loaded.
 
     """
 
