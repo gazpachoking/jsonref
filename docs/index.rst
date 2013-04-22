@@ -21,8 +21,9 @@ objects for Python (supporting 2.6+ including Python 3).
         "reference": {"$ref": "#/data/1"}
     }
 
-    # The JsonRef constructor will replace JSON references within the document
-    pprint(JsonRef(document))
+    # The JsonRef.replace class method will replace JSON references within the
+    # document
+    pprint(JsonRef.replace(document))
 
 .. testoutput::
 
@@ -39,10 +40,27 @@ first time they are accessed. Once JSON reference objects have been replaced
 within your data structure, you can use the data as if it does not contain
 references at all.
 
-The constructor for :class:`JsonRef` will replace all references is whatever
-object you pass it. There are several other options you can pass, seen below.
+The class method :meth:`JsonRef.replace` will replace all references is
+whatever object you pass it. There are several other options you can pass, seen
+below.
 
-.. autoclass:: JsonRef(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=None, base_doc=None)
+.. autoclass:: JsonRef(refobj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=None, base_doc=None)
+
+    .. automethod:: replace(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=None, base_doc=None)
+
+    :class:`JsonRef` instances proxy almost all operators and attributes to the
+    referent data, which will be loaded when first accessed. The following
+    attributes are not proxied:
+
+    .. attribute:: __subject__
+
+        Contains the referent data. Accessing this will cause the data to be
+        loaded if it has not already been.
+
+    .. attribute:: __reference__
+
+        Contains the original JSON Reference object. Accessing this attribute
+        will not cause the referent data to be loaded.
 
 
 :mod:`json` module drop in replacement functions

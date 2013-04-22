@@ -41,47 +41,32 @@ class JsonRef(LazyProxy):
     A lazy loading proxy to the dereferenced data pointed to by a JSON
     Reference object.
 
-    :param obj: If this is a JSON reference object, a :class:`JsonRef`
-        instance will be created. If `obj` is not a JSON reference object,
-        a deep copy of it will be created with all contained JSON
-        reference objects replaced by :class:`JsonRef` instances
-    :param base_uri: URI to resolve relative references against
-    :param loader: Callable that takes a URI and returns the parsed JSON
-        (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
-    :param loader_kwargs: A dict of keyword arguments to pass to loader
-    :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
-        changes the `base_uri` for references contained within the object
-    :param load_on_repr: If left unset (or ``None``), a :func:`repr` call will
-        cause a reference to load only until a loop is detected. If set to
-        ``True``/``False``, :func:`repr` will always or never cause a reference
-        to load (defaults to ``None``)
-    :param base_doc: Document at `base_uri` for local dereferencing
-        (defaults to `obj`)
-
-    Proxies almost all operators and attributes to the dereferenced data, which
-    will be loaded when first accessed. The following attributes are not
-    proxied:
-
-    .. attribute:: __subject__
-
-        Contains the referent data. Accessing this will cause the data to be
-        loaded if it has not already been.
-
-    .. attribute:: __reference__
-
-        Contains the original JSON Reference object. Accessing this attribute
-        will not cause the referent data to be loaded.
-
     """
 
     __notproxied__ = ("__reference__",)
 
-    def __new__(cls, obj, **kwargs):
+    @classmethod
+    def replace(cls, obj, **kwargs):
         """
-        When a :class:`JsonRef` is instantiated with an `obj` which is not a
-        JSON reference object, it returns a deep copy of `obj` with all
-        contained JSON reference objects replaced with :class:`JsonRef`
-        objects.
+        Returns a deep copy of `obj` with all contained JSON reference objects
+        replaced with :class:`JsonRef` instances.
+
+        :param obj: If this is a JSON reference object, a :class:`JsonRef`
+            instance will be created. If `obj` is not a JSON reference object,
+            a deep copy of it will be created with all contained JSON
+            reference objects replaced by :class:`JsonRef` instances
+        :param base_uri: URI to resolve relative references against
+        :param loader: Callable that takes a URI and returns the parsed JSON
+            (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
+        :param loader_kwargs: A dict of keyword arguments to pass to loader
+        :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
+            changes the `base_uri` for references contained within the object
+        :param load_on_repr: If left unset (or ``None``), a :func:`repr` call
+            will cause a reference to load only until a loop is detected. If
+            set to ``True``/``False``, :func:`repr` will always or never cause
+            a reference to load (defaults to ``None``)
+        :param base_doc: Document at `base_uri` for local dereferencing
+            (defaults to `obj`)
 
         """
 
@@ -103,16 +88,16 @@ class JsonRef(LazyProxy):
         except (TypeError, LookupError):
             pass
         else:
-            return super(JsonRef, cls).__new__(cls)
+            return cls(obj, **kwargs)
 
         # If our obj was not a json reference object, iterate through it,
         # replacing children with JsonRefs
         if isinstance(obj, Mapping):
             return type(obj)(
-                (k, JsonRef(v, **kwargs)) for k, v in iteritems(obj)
+                (k, cls.replace(v, **kwargs)) for k, v in iteritems(obj)
             )
         elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
-            return type(obj)(JsonRef(i, **kwargs) for i in obj)
+            return type(obj)(cls.replace(i, **kwargs) for i in obj)
         # If obj was not a list or dict, just return it
         return obj
 
@@ -152,14 +137,14 @@ class JsonRef(LazyProxy):
         # Relative ref within the base document
         if not uri or uri == self.base_uri and self.base_doc:
             doc = self.resolve_pointer(self.base_doc, fragment)
-            return JsonRef(doc, **self._ref_kwargs)
+            return JsonRef.replace(doc, **self._ref_kwargs)
 
         # Remote ref
         base_doc = self.loader(uri, **self.loader_kwargs)
         doc = self.resolve_pointer(base_doc, fragment)
         kwargs = self._ref_kwargs
         kwargs.update(base_doc=base_doc, base_uri=uri)
-        return JsonRef(doc, **kwargs)
+        return JsonRef.replace(doc, **kwargs)
 
     @staticmethod
     def resolve_pointer(document, pointer):
@@ -300,7 +285,7 @@ def load(fp, ref_kwargs=(), **kwargs):
 
     ref_kwargs = dict(ref_kwargs)
     ref_kwargs.setdefault("loader_kwargs", kwargs)
-    return JsonRef(json.load(fp, **kwargs), **ref_kwargs)
+    return JsonRef.replace(json.load(fp, **kwargs), **ref_kwargs)
 
 
 def loads(s, ref_kwargs=(), **kwargs):
@@ -317,7 +302,7 @@ def loads(s, ref_kwargs=(), **kwargs):
 
     ref_kwargs = dict(ref_kwargs)
     ref_kwargs.setdefault("loader_kwargs", kwargs)
-    return JsonRef(json.loads(s, **kwargs), **ref_kwargs)
+    return JsonRef.replace(json.loads(s, **kwargs), **ref_kwargs)
 
 
 def load_uri(uri, ref_kwargs=(), **kwargs):
@@ -333,7 +318,7 @@ def load_uri(uri, ref_kwargs=(), **kwargs):
     ref_kwargs.setdefault("loader_kwargs", kwargs)
     ref_kwargs.setdefault("base_uri", uri)
     loader = ref_kwargs.get("loader", jsonloader)
-    return JsonRef(loader(uri, **kwargs), **ref_kwargs)
+    return JsonRef.replace(loader(uri, **kwargs), **ref_kwargs)
 
 
 def dump(obj, fp, **kwargs):

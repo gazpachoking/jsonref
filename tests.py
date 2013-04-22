@@ -29,20 +29,20 @@ class TestJsonRef(object):
 
     def test_local_object_ref(self):
         json = {"a": 5, "b": {"$ref": "#/a"}}
-        assert JsonRef(json)["b"] == json["a"]
+        assert JsonRef.replace(json)["b"] == json["a"]
 
     def test_local_array_ref(self):
         json = [10, {"$ref": "#/0"}]
-        assert JsonRef(json)[1] == json[0]
+        assert JsonRef.replace(json)[1] == json[0]
 
     def test_local_mixed_ref(self):
         json = {"a": [5, 15], "b": {"$ref": "#/a/1"}}
-        assert JsonRef(json)["b"] == json["a"][1]
+        assert JsonRef.replace(json)["b"] == json["a"][1]
 
     def test_custom_loader(self):
         data = {"$ref": "foo"}
         loader = mock.Mock(return_value=42)
-        result = JsonRef(data, loader=loader)
+        result = JsonRef.replace(data, loader=loader)
         # Loading should not occur until we do something with result
         assert loader.call_count == 0
         # Make sure we got the right result
@@ -57,7 +57,7 @@ class TestJsonRef(object):
     def test_base_uri_resolution(self):
         json = {"$ref": "foo"}
         dereferencer = mock.Mock(return_value=17)
-        result = JsonRef(
+        result = JsonRef.replace(
             json, base_uri="http://bar.com", loader=dereferencer
         )
         assert result == 17
@@ -66,7 +66,7 @@ class TestJsonRef(object):
     def test_repr_does_not_loop_by_default(self):
         json = {"a": ["aoeu", {"$ref": "#/a"}]}
         assert (
-            repr(JsonRef(json)) ==
+            repr(JsonRef.replace(json)) ==
             "{'a': ['aoeu', ['aoeu', JsonRef{'$ref': '#/a'}]]}"
         )
 
@@ -76,12 +76,12 @@ class TestJsonRef(object):
             "d": {"$ref": "#/c"}, "e": {"$ref": "#/d"}, "f": {"$ref": "#/e"}
         }
         assert (
-            repr(sorted(JsonRef(json).items())) ==
+            repr(sorted(JsonRef.replace(json).items())) ==
             "[('a', 'string'), ('b', 'string'), ('c', 'string'), "
             "('d', 'string'), ('e', 'string'), ('f', 'string')]"
         )
         # Should not expand when set to False explicitly
-        result = JsonRef(json, load_on_repr=False)
+        result = JsonRef.replace(json, load_on_repr=False)
         assert (
             repr(sorted(result.items())) ==
             "[('a', 'string'), ('b', JsonRef{'$ref': '#/a'}), "
@@ -99,7 +99,7 @@ class TestJsonRef(object):
                 "c": {"$ref": "#/b"}
             }
         }
-        result = JsonRef(json, jsonschema=True)
+        result = JsonRef.replace(json, jsonschema=True)
         assert result["a"]["c"] == json["a"]["b"]
 
     def test_jsonschema_mode_remote(self):
@@ -109,12 +109,16 @@ class TestJsonRef(object):
             "b": {
                 "id": "http://bar.com/a/schema",
                 "c": {"$ref": "otherSchema"},
-                "d": {"$ref": "/otherSchema"}
+                "d": {"$ref": "/otherSchema"},
+                "e": {
+                    "id": "/b/schema",
+                    "$ref": "otherSchema"
+                }
             }
         }
         counter = itertools.count()
         loader = mock.Mock(side_effect=lambda uri: next(counter))
-        result = JsonRef(json, loader=loader, base_uri=base_uri, jsonschema=True)
+        result = JsonRef.replace(json, loader=loader, base_uri=base_uri, jsonschema=True)
         assert result["a"] == 0
         loader.assert_called_once_with("http://foo.com/otherSchema")
         loader.reset_mock()
@@ -123,8 +127,9 @@ class TestJsonRef(object):
         loader.reset_mock()
         assert result["b"]["d"] == 2
         loader.assert_called_once_with("http://bar.com/otherSchema")
-
-
+        loader.reset_mock()
+        assert result["b"]["e"] == 3
+        loader.assert_called_once_with("http://bar.com/b/otherSchema")
 
 
 class TestApi(object):
