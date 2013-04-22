@@ -2,6 +2,7 @@ import codecs
 from copy import deepcopy
 import operator
 import json
+import itertools
 
 try:
     from unittest import mock
@@ -26,9 +27,17 @@ else:
 
 class TestJsonRef(object):
 
-    def test_local_ref(self):
+    def test_local_object_ref(self):
         json = {"a": 5, "b": {"$ref": "#/a"}}
         assert JsonRef(json)["b"] == json["a"]
+
+    def test_local_array_ref(self):
+        json = [10, {"$ref": "#/0"}]
+        assert JsonRef(json)[1] == json[0]
+
+    def test_local_mixed_ref(self):
+        json = {"a": [5, 15], "b": {"$ref": "#/a/1"}}
+        assert JsonRef(json)["b"] == json["a"][1]
 
     def test_custom_loader(self):
         data = {"$ref": "foo"}
@@ -38,7 +47,7 @@ class TestJsonRef(object):
         assert loader.call_count == 0
         # Make sure we got the right result
         assert result == 42
-        # Do several things with result
+        # Do several more things with result
         result + 3
         repr(result)
         result *= 2
@@ -79,6 +88,43 @@ class TestJsonRef(object):
             "('c', JsonRef{'$ref': '#/b'}), ('d', JsonRef{'$ref': '#/c'}), "
             "('e', JsonRef{'$ref': '#/d'}), ('f', JsonRef{'$ref': '#/e'})]"
         )
+
+    def test_jsonschema_mode_local(self):
+        json = {
+            "a": {
+                "id": "http://foo.com/schema",
+                "b": "aoeu",
+                # Reference should now be relative to this inner object, rather
+                # than the whole document
+                "c": {"$ref": "#/b"}
+            }
+        }
+        result = JsonRef(json, jsonschema=True)
+        assert result["a"]["c"] == json["a"]["b"]
+
+    def test_jsonschema_mode_remote(self):
+        base_uri = "http://foo.com/schema"
+        json = {
+            "a": {"$ref": "otherSchema"},
+            "b": {
+                "id": "http://bar.com/a/schema",
+                "c": {"$ref": "otherSchema"},
+                "d": {"$ref": "/otherSchema"}
+            }
+        }
+        counter = itertools.count()
+        loader = mock.Mock(side_effect=lambda uri: next(counter))
+        result = JsonRef(json, loader=loader, base_uri=base_uri, jsonschema=True)
+        assert result["a"] == 0
+        loader.assert_called_once_with("http://foo.com/otherSchema")
+        loader.reset_mock()
+        assert result["b"]["c"] == 1
+        loader.assert_called_once_with("http://bar.com/a/otherSchema")
+        loader.reset_mock()
+        assert result["b"]["d"] == 2
+        loader.assert_called_once_with("http://bar.com/otherSchema")
+
+
 
 
 class TestApi(object):

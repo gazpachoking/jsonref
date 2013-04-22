@@ -94,6 +94,10 @@ class JsonRef(LazyProxy):
                     ),
                     base_doc=obj
                 )
+        except (TypeError, LookupError):
+            pass
+
+        try:
             if not isinstance(obj["$ref"], basestring):
                 raise TypeError
         except (TypeError, LookupError):
