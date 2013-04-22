@@ -8,7 +8,7 @@ python:
 install:
   - python setup.py -q install
   - pip install pytest-cov coveralls
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; pip install sphinx; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then pip install sphinx; fi
 script:
   - py.test tests.py --cov jsonref --cov proxytypes --cov-report term-missing
   # Docs are in python 3 format
