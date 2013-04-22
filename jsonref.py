@@ -286,8 +286,8 @@ def load(json_file, ref_kwargs=(), **kwargs):
     proxied to their referent data.
 
     :param ref_kwargs: A dict of keyword arguments to pass to :class:`JsonRef`
-
-    All other keyword arguments will be passed to :func:`json.load`
+    :param kwargs: All other keyword arguments will be passed to
+        :func:`json.load`
 
     """
 
@@ -302,8 +302,8 @@ def loads(json_str, ref_kwargs=(), **kwargs):
     proxied to their referent data.
 
     :param ref_kwargs: A dict of keyword arguments to pass to :class:`JsonRef`
-
-    All other keyword arguments will be passed to :func:`json.loads`
+    :param kwargs: All other keyword arguments will be passed to
+        :func:`json.loads`
 
     """
 
@@ -318,14 +318,13 @@ def load_uri(uri, ref_kwargs=(), **kwargs):
     data.
 
     :param uri: URI to fetch the JSON from
-    :param loader: Callable that takes a URI and returns the parsed JSON
 
     """
 
     ref_kwargs = dict(ref_kwargs)
     ref_kwargs.setdefault("loader_kwargs", kwargs)
     ref_kwargs.setdefault("base_uri", uri)
-    loader = ref_kwargs.pop("loader", jsonloader)
+    loader = ref_kwargs.get("loader", jsonloader)
     return JsonRef(loader(uri, **kwargs), **ref_kwargs)
 
 

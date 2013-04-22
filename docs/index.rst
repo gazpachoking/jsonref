@@ -43,3 +43,15 @@ The constructor for :class:`JsonRef` will replace all references is whatever
 object you pass it. There are several other options you can pass, seen below.
 
 .. autoclass:: JsonRef(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=None, base_doc=None)
+
+
+:mod:`json` module drop in replacement functions
+================================================
+
+.. autofunction:: loads
+
+.. autofunction:: load
+
+.. autofunction:: dumps
+
+.. autofunction:: dump
