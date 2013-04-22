@@ -29,4 +29,17 @@ objects for Python (supporting 2.6+ including Python 3).
     {'data': ['a', 'b', 'c'], 'reference': 'b'}
 
 
+JsonRef Objects
+===============
+
+:class:`JsonRef` objects are the backbone of the library, and used to replace
+the JSON reference objects within the data structure. They act as proxies to
+whatever data the reference is pointing to, but only look up that data the
+first time they are accessed. Once JSON reference objects have been replaced
+within your data structure, you can use the data as if it does not contain
+references at all.
+
+The constructor for :class:`JsonRef` will replace all references is whatever
+object you pass it. There are several other options you can pass, seen below.
+
 .. autoclass:: JsonRef(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=None, base_doc=None)
