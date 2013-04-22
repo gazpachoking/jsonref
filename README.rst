@@ -1,9 +1,12 @@
 jsonref
 =======
 
-
 .. image:: https://travis-ci.org/gazpachoking/jsonref.png?branch=master
     :target: https://travis-ci.org/gazpachoking/jsonref
+
+.. image:: https://coveralls.io/repos/gazpachoking/jsonref/badge.png?branch=master
+    :target: https://coveralls.io/r/gazpachoking/jsonref
+
 
 ``jsonref`` is a library for automatic dereferencing of
 `JSON Reference <http://tools.ietf.org/id/draft-pbryan-zyp-json-ref-03.html>`_
