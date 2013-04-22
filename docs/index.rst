@@ -40,7 +40,7 @@ first time they are accessed. Once JSON reference objects have been replaced
 within your data structure, you can use the data as if it does not contain
 references at all.
 
-The class method :meth:`JsonRef.replace` will replace all references is
+The class method :meth:`JsonRef.replace` will replace all JSON references in
 whatever object you pass it. There are several other options you can pass, seen
 below.
 
