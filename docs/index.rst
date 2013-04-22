@@ -29,7 +29,7 @@ objects for Python (supporting 2.6+ including Python 3).
     {'data': ['a', 'b', 'c'], 'reference': 'b'}
 
 
-JsonRef Objects
+:class:`JsonRef` Objects
 ===============
 
 :class:`JsonRef` objects are the backbone of the library, and used to replace
