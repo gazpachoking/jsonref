@@ -41,12 +41,34 @@ class JsonRef(LazyProxy):
     A lazy loading proxy to the dereferenced data pointed to by a JSON
     Reference object.
 
+    :param obj: If this is a JSON reference object, a :class:`JsonRef`
+        instance will be created. If `obj` is not a JSON reference object,
+        a deep copy of it will be created with all contained JSON
+        reference objects replaced by :class:`JsonRef` instances
+    :param base_uri: URI to resolve relative references against
+    :param loader: Callable that takes a URI and returns the parsed JSON
+        (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
+    :param loader_kwargs: A dict of keyword arguments to pass to loader
+    :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
+        changes the `base_uri` for references contained within the object
+    :param load_on_repr: If left unset (or ``None``), a :func:`repr` call will
+        cause a reference to load only until a loop is detected. If set to
+        ``True``/``False``, :func:`repr` will always or never cause a reference
+        to load (defaults to ``None``)
+    :param base_doc: Document at `base_uri` for local dereferencing
+        (defaults to `obj`)
+
     Proxies almost all operators and attributes to the dereferenced data, which
     will be loaded when first accessed. The following attributes are not
     proxied:
 
-    :attribute __subject__: The referent data
-    :attribute __reference__: The original JSON Reference object
+    .. attribute:: __subject__
+
+        Contains the referent data
+
+    .. attribute:: __reference__
+
+        Contains the original JSON Reference object
 
     """
 
@@ -92,24 +114,10 @@ class JsonRef(LazyProxy):
             self, refobj, base_uri=None, loader=None, loader_kwargs=(),
             base_doc=None, jsonschema=False, load_on_repr=None, _stack=()
     ):
-        """
-        :param refobj: A `dict` representing the JSON Reference object
-        :param base_uri: URI to resolve relative references against
-        :param loader: Callable that takes a URI and returns the parsed JSON
-        :param base_doc: Document at `base_uri` for local dereferencing
-            (defaults to `obj`)
-        :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
-            changes the `base_uri` for references contained within the object
-        :param load_on_repr: If left unset (or None), a `repr` call will cause
-            a reference to load only until a loop is detected. If set to
-            True/False, `repr` will always or never cause a reference to load
-            (defaults to None)
-
-        """
         if not isinstance(refobj.get("$ref"), basestring):
             raise ValueError("Not a valid json reference object: %s" % refobj)
         self.__reference__ = refobj
-        self.base_doc=base_doc
+        self.base_doc = base_doc
         self.base_uri = base_uri
         self.loader = loader or jsonloader
         self.loader_kwargs = dict(loader_kwargs)
