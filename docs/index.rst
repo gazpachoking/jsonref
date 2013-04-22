@@ -30,7 +30,7 @@ objects for Python (supporting 2.6+ including Python 3).
 
 
 :class:`JsonRef` Objects
-===============
+========================
 
 :class:`JsonRef` objects are the backbone of the library, and used to replace
 the JSON reference objects within the data structure. They act as proxies to
