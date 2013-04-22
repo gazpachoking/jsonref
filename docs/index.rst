@@ -48,10 +48,26 @@ object you pass it. There are several other options you can pass, seen below.
 :mod:`json` module drop in replacement functions
 ================================================
 
-.. autofunction:: loads
+load
+----
+
+Several functions are provided as drop in replacements to functions from the
+:mod:`json` module. :func:`load` and :func:`loads` work just like their
+:mod:`json` counterparts, except for references will already be replaced in the
+return values. If you need to pass in custom parameters to :class:`JsonRef`,
+keyword arguments can be provided by the `ref_kwargs` argument.
 
 .. autofunction:: load
 
-.. autofunction:: dumps
+.. autofunction:: loads
+
+dump
+----
+
+:func:`dump` and :func:`dumps` work just like their :mod:`json` counterparts,
+except they output the original reference objects when encountering
+:class:`JsonRef` instances.
 
 .. autofunction:: dump
+
+.. autofunction:: dumps

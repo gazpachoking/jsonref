@@ -280,11 +280,12 @@ class JsonLoader(object):
 jsonloader = JsonLoader()
 
 
-def load(json_file, ref_kwargs=(), **kwargs):
+def load(fp, ref_kwargs=(), **kwargs):
     """
     Drop in replacement for :func:`json.load`, where JSON references are
     proxied to their referent data.
 
+    :param fp: File-like object containing JSON document
     :param ref_kwargs: A dict of keyword arguments to pass to :class:`JsonRef`
     :param kwargs: All other keyword arguments will be passed to
         :func:`json.load`
@@ -293,14 +294,15 @@ def load(json_file, ref_kwargs=(), **kwargs):
 
     ref_kwargs = dict(ref_kwargs)
     ref_kwargs.setdefault("loader_kwargs", kwargs)
-    return JsonRef(json.load(json_file, **kwargs), **ref_kwargs)
+    return JsonRef(json.load(fp, **kwargs), **ref_kwargs)
 
 
-def loads(json_str, ref_kwargs=(), **kwargs):
+def loads(s, ref_kwargs=(), **kwargs):
     """
     Drop in replacement for :func:`json.loads`, where JSON references are
     proxied to their referent data.
 
+    :param s: String containing JSON document
     :param ref_kwargs: A dict of keyword arguments to pass to :class:`JsonRef`
     :param kwargs: All other keyword arguments will be passed to
         :func:`json.loads`
@@ -309,7 +311,7 @@ def loads(json_str, ref_kwargs=(), **kwargs):
 
     ref_kwargs = dict(ref_kwargs)
     ref_kwargs.setdefault("loader_kwargs", kwargs)
-    return JsonRef(json.loads(json_str, **kwargs), **ref_kwargs)
+    return JsonRef(json.loads(s, **kwargs), **ref_kwargs)
 
 
 def load_uri(uri, ref_kwargs=(), **kwargs):
@@ -330,10 +332,12 @@ def load_uri(uri, ref_kwargs=(), **kwargs):
 
 def dump(obj, fp, **kwargs):
     """
-    Dump JSON for `obj` to `fp`, which may contain :class:`JsonRef` objects.
-    `JsonRef` objects will be dumped as the original reference object they were
-    created from.
+    Serialize `obj`, which may contain :class:`JsonRef` objects, as a JSON
+    formatted stream to file-like `fp`. `JsonRef` objects will be dumped as the
+    original reference object they were created from.
 
+    :param obj: Object to serialize
+    :param fp: File-like to output JSON string
     :param kwargs: Keyword arguments are the same as to :func:`json.dump`
 
     """
@@ -344,10 +348,11 @@ def dump(obj, fp, **kwargs):
 
 def dumps(obj, **kwargs):
     """
-    Dump JSON for `obj` to a string, which may contain :class:`JsonRef`
-    objects. `JsonRef` objects will be dumped as the original reference object
-    they were created from.
+    Serialize `obj`, which may contain :class:`JsonRef` objects, to a JSON
+    formatted string. `JsonRef` objects will be dumped as the original
+    reference object they were created from.
 
+    :param obj: Object to serialize
     :param kwargs: Keyword arguments are the same as to :func:`json.dumps`
 
     """
