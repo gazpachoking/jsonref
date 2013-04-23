@@ -32,10 +32,12 @@ MAGIC_FUNCS = [
 
 if PY3:
     MAGIC_FUNCS += [bytes]
+    iteritems = operator.methodcaller("items")
 else:
     OPERATORS += ["getslice", "setslice", "delslice", "idiv"]
     REFLECTED_OPERATORS += ["div"]
     MAGIC_FUNCS += [long, unicode, cmp, coerce, oct, hex]
+    iteritems = operator.methodcaller("iteritems")
 
 
 _oga = object.__getattribute__
@@ -50,9 +52,7 @@ class ProxyMetaClass(type):
         for base in bases:
             if hasattr(base, "__notproxied__"):
                 newcls.__notproxied__.update(base.__notproxied__)
-        for key, val in dct.items():
-            if key in ["__dict__", "__new__"]:
-                continue
+        for key, val in iteritems(dct):
             setattr(newcls, key, val)
         return newcls
 
