@@ -26,6 +26,13 @@ else:
 
 
 class TestJsonRef(object):
+    def test_non_ref_object_throws_error(self):
+        with pytest.raises(ValueError):
+            JsonRef({"ref": "aoeu"})
+
+    def test_non_string_is_not_ref(self):
+        json = {"$ref": [1]}
+        assert JsonRef.replace(json) == json
 
     def test_local_object_ref(self):
         json = {"a": 5, "b": {"$ref": "#/a"}}
@@ -38,6 +45,19 @@ class TestJsonRef(object):
     def test_local_mixed_ref(self):
         json = {"a": [5, 15], "b": {"$ref": "#/a/1"}}
         assert JsonRef.replace(json)["b"] == json["a"][1]
+
+    def test_local_nonexistent_ref(self):
+        json = {
+            "data": [1, 2],
+            "a": {"$ref": "#/x"},
+            "b": {"$ref": "#/0"},
+            "c": {"$ref": "#/data/3"},
+            "d": {"$ref": "#/data/b"}
+        }
+        result = JsonRef.replace(json)
+        for key in "abcd":
+            with pytest.raises(LookupError):
+                result[key].__subject__
 
     def test_custom_loader(self):
         data = {"$ref": "foo"}
@@ -56,12 +76,12 @@ class TestJsonRef(object):
 
     def test_base_uri_resolution(self):
         json = {"$ref": "foo"}
-        dereferencer = mock.Mock(return_value=17)
+        loader = mock.Mock(return_value=17)
         result = JsonRef.replace(
-            json, base_uri="http://bar.com", loader=dereferencer
+            json, base_uri="http://bar.com", loader=loader
         )
         assert result == 17
-        dereferencer.assert_called_once_with("http://bar.com/foo")
+        loader.assert_called_once_with("http://bar.com/foo")
 
     def test_repr_does_not_loop_by_default(self):
         json = {"a": ["aoeu", {"$ref": "#/a"}]}
@@ -130,6 +150,18 @@ class TestJsonRef(object):
         loader.reset_mock()
         assert result["b"]["e"] == 3
         loader.assert_called_once_with("http://bar.com/b/otherSchema")
+
+    def test_jsonref_mode_non_string_is_not_id(self):
+        base_uri = "http://foo.com/json"
+        json = {
+            "id": [1],
+            "$ref": "other"
+        }
+        loader = mock.Mock(return_value="aoeu")
+        result = JsonRef.replace(json, base_uri=base_uri, loader=loader)
+        assert result == "aoeu"
+        loader.assert_called_once_with("http://foo.com/other")
+
 
 
 class TestApi(object):
