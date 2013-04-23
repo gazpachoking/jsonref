@@ -66,11 +66,13 @@ below.
 :mod:`json` module drop in replacement functions
 ================================================
 
+Several functions are provided as drop in replacements to functions from the
+:mod:`json` module.
+
 load
 ----
 
-Several functions are provided as drop in replacements to functions from the
-:mod:`json` module. :func:`load` and :func:`loads` work just like their
+:func:`load` and :func:`loads` work just like their
 :mod:`json` counterparts, except for references will already be replaced in the
 return values. If you need to pass in custom parameters to :class:`JsonRef`,
 keyword arguments can be provided by the `ref_kwargs` argument.
