@@ -1,4 +1,3 @@
-import codecs
 from copy import deepcopy
 import operator
 import json
@@ -11,7 +10,8 @@ except ImportError:
 
 import pytest
 
-from jsonref import PY3, JsonRef, loads, load, JsonLoader, dumps, dump
+from jsonref import (PY3, JsonRef, JsonRefError, loads, load, JsonLoader,
+                     dumps, dump)
 from proxytypes import Proxy, CallbackProxy, LazyProxy, notproxied
 
 if PY3:
@@ -56,7 +56,7 @@ class TestJsonRef(object):
         }
         result = JsonRef.replace(json)
         for key in "abcd":
-            with pytest.raises(LookupError):
+            with pytest.raises(JsonRefError):
                 result[key].__subject__
 
     def test_custom_loader(self):

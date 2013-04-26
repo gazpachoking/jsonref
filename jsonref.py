@@ -36,6 +36,21 @@ from proxytypes import LazyProxy
 __version__ = "0.1-dev"
 
 
+class JsonRefError(Exception):
+    def __init__(
+            self, message, reference, base_uri='', path=(), stack=(), cause=None
+    ):
+        self.message = message
+        self.reference = reference
+        self.base_uri = base_uri
+        self.path = list(path)
+        self.stack = list(stack)
+        self.cause = self.__cause__ = cause
+
+    def __repr__(self):
+        return "<%s: %r>" % (self.__class__.__name__, self.message)
+
+
 class JsonRef(LazyProxy):
     """
     A lazy loading proxy to the dereferenced data pointed to by a JSON
@@ -93,17 +108,23 @@ class JsonRef(LazyProxy):
         # If our obj was not a json reference object, iterate through it,
         # replacing children with JsonRefs
         if isinstance(obj, Mapping):
+            path = list(kwargs.pop("_path", ()))
             return type(obj)(
-                (k, cls.replace(v, **kwargs)) for k, v in iteritems(obj)
+                (k, cls.replace(v, _path=path+[k], **kwargs))
+                for k, v in iteritems(obj)
             )
         elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
-            return type(obj)(cls.replace(i, **kwargs) for i in obj)
+            path = list(kwargs.pop("_path", ()))
+            return type(obj)(
+                cls.replace(i, _path=path+[i], **kwargs) for i in obj
+            )
         # If obj was not a list or dict, just return it
         return obj
 
     def __init__(
             self, refobj, base_uri=None, loader=None, loader_kwargs=(),
-            base_doc=None, jsonschema=False, load_on_repr=None, _stack=()
+            base_doc=None, jsonschema=False, load_on_repr=None, _stack=(),
+            _path=()
     ):
         if not isinstance(refobj.get("$ref"), basestring):
             raise ValueError("Not a valid json reference object: %s" % refobj)
@@ -115,6 +136,7 @@ class JsonRef(LazyProxy):
         self.jsonschema = jsonschema
         self.load_on_repr = load_on_repr
         self.stack = list(_stack)
+        self.path = list(_path)
         # If we encounter a loop
         self._circular = self.full_uri in self.stack
         self.stack.append(self.full_uri)
@@ -124,7 +146,7 @@ class JsonRef(LazyProxy):
         return dict(
             base_uri=self.base_uri, base_doc=self.base_doc, loader=self.loader,
             loader_kwargs=self.loader_kwargs, jsonschema=self.jsonschema,
-            load_on_repr=self.load_on_repr, _stack=self.stack
+            load_on_repr=self.load_on_repr, _stack=self.stack, _path=self.path
         )
 
     @property
@@ -140,14 +162,17 @@ class JsonRef(LazyProxy):
             return JsonRef.replace(doc, **self._ref_kwargs)
 
         # Remote ref
-        base_doc = self.loader(uri, **self.loader_kwargs)
+        try:
+            base_doc = self.loader(uri, **self.loader_kwargs)
+        except Exception as e:
+            self._error("%s: %s" % (e.__class__.__name__, unicode(e)), cause=e)
+
         doc = self.resolve_pointer(base_doc, fragment)
         kwargs = self._ref_kwargs
         kwargs.update(base_doc=base_doc, base_uri=uri)
         return JsonRef.replace(doc, **kwargs)
 
-    @staticmethod
-    def resolve_pointer(document, pointer):
+    def resolve_pointer(self, document, pointer):
         """
         Resolve a json pointer ``pointer`` within the referenced ``document``.
 
@@ -155,26 +180,31 @@ class JsonRef(LazyProxy):
         :argument str pointer: a json pointer URI fragment to resolve within it
 
         """
-
-        def fail():
-            raise LookupError("Unresolvable JSON pointer: %r" % pointer)
-
         parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
 
         for part in parts:
             part = part.replace("~1", "/").replace("~0", "~")
-            if isinstance(document, Mapping):
-                if part not in document:
-                    fail()
-            else:
+            if isinstance(document, Sequence):
+                # Try to turn an array index to an int
                 try:
                     part = int(part)
                 except ValueError:
-                    fail()
-                if part >= len(document):
-                    fail()
-            document = document[part]
+                    pass
+            try:
+                document = document[part]
+            except (TypeError, LookupError) as e:
+                self._error("Unresolvable JSON pointer: %r" % pointer, cause=e)
         return document
+
+    def _error(self, message, cause=None):
+        raise JsonRefError(
+            message,
+            self.__reference__,
+            base_uri=self.base_uri,
+            path=self.path,
+            stack=self.stack,
+            cause=cause
+        )
 
     def __repr__(self):
         load = self.load_on_repr
