@@ -38,10 +38,12 @@ __version__ = "0.1-dev"
 
 class JsonRefError(Exception):
     def __init__(
-            self, message, reference, base_uri='', path=(), stack=(), cause=None
+            self, message, reference, uri="", base_uri="", path=(), stack=(),
+            cause=None
     ):
         self.message = message
         self.reference = reference
+        self.uri = uri
         self.base_uri = base_uri
         self.path = list(path)
         self.stack = list(stack)
@@ -200,6 +202,7 @@ class JsonRef(LazyProxy):
         raise JsonRefError(
             message,
             self.__reference__,
+            uri=self.full_uri,
             base_uri=self.base_uri,
             path=self.path,
             stack=self.stack,
