@@ -12,7 +12,7 @@ except ImportError:
 import pytest
 
 from jsonref import PY3, JsonRef, loads, load, JsonLoader, dumps, dump
-from proxytypes import Proxy, CallbackProxy, LazyProxy
+from proxytypes import Proxy, CallbackProxy, LazyProxy, notproxied
 
 if PY3:
     long = int
@@ -468,15 +468,15 @@ class TestProxies(object):
                 return self.attr
             def setter(self, value):
                 super(C, self).setter(value)
-            @LazyProxy.notproxied
+            @notproxied
             def decorated(self):
                 return 2.0
             @property
-            @LazyProxy.notproxied
+            @notproxied
             def decorated_prop(self):
                 return 3.0
 
-        C.getter2 = C.notproxied(lambda self: self.attr)
+        C.getter2 = notproxied(lambda self: self.attr)
 
         c = C("proxied")
         # Make sure super works

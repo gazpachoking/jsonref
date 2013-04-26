@@ -143,15 +143,6 @@ class Proxy(_ProxyBase):
     def __call__(self, *args, **kw):
         return self.__subject__(*args, **kw)
 
-    @staticmethod
-    def notproxied(func):
-        """
-        Decorator for methods that should not be proxied
-
-        """
-        func.__notproxied__ = True
-        return func
-
     @classmethod
     def add_proxy_meth(cls, name, func, arg_pos=0):
         """
@@ -192,7 +183,7 @@ Proxy.__nonzero__ = Proxy.__bool__
 
 class CallbackProxy(Proxy):
     """
-    Proxy for a callback result. Callback is called on each access.
+    Proxy for a callback result. Callback is called on each use.
 
     """
 
@@ -221,3 +212,12 @@ class LazyProxy(CallbackProxy):
     @__subject__.setter
     def __subject__(self, value):
         self.cache = value
+
+
+def notproxied(func):
+    """
+    Decorator to add methods to the __notproxied__ list
+
+    """
+    func.__notproxied__ = True
+    return func
