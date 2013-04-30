@@ -31,7 +31,7 @@ try:
 except ImportError:
     requests = None
 
-from proxytypes import LazyProxy
+from proxytypes import LazyProxy, Proxy
 
 __version__ = "0.1-dev"
 
@@ -78,23 +78,25 @@ class JsonRef(LazyProxy):
         :param loader_kwargs: A dict of keyword arguments to pass to loader
         :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
             changes the `base_uri` for references contained within the object
-        :param load_on_repr: If left unset (or ``None``), a :func:`repr` call
-            will cause a reference to load only until a loop is detected. If
-            set to ``True``/``False``, :func:`repr` will always or never cause
-            a reference to load (defaults to ``None``)
-        :param base_doc: Document at `base_uri` for local dereferencing
+        :param load_on_repr: If set to ``False``, :func:`repr` call on a
+            :class:`JsonRef` object will not cause the reference to be loaded
+            if it has't already. (defaults to ``True``)
+        :param _base_doc: Document at `base_uri` for local dereferencing
             (defaults to `obj`)
 
         """
 
-        kwargs.setdefault('base_doc', obj)
+        # base_doc will be set to the returned object to create recursive
+        # structures
+        base_doc = Proxy(None)
+        kwargs.setdefault("_base_doc", base_doc)
         try:
             if kwargs.get("jsonschema") and isinstance(obj["id"], basestring):
                 kwargs.update(
                     base_uri=urlparse.urljoin(
                         kwargs.get("base_uri", ""), obj["id"]
                     ),
-                    base_doc=obj
+                    _base_doc=base_doc
                 )
         except (TypeError, LookupError):
             pass
@@ -111,27 +113,27 @@ class JsonRef(LazyProxy):
         # replacing children with JsonRefs
         if isinstance(obj, Mapping):
             path = list(kwargs.pop("_path", ()))
-            return type(obj)(
+            obj = type(obj)(
                 (k, cls.replace(v, _path=path+[k], **kwargs))
                 for k, v in iteritems(obj)
             )
         elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
             path = list(kwargs.pop("_path", ()))
-            return type(obj)(
+            obj = type(obj)(
                 cls.replace(i, _path=path+[i], **kwargs) for i in obj
             )
-        # If obj was not a list or dict, just return it
+        base_doc.__subject__ = obj
         return obj
 
     def __init__(
-            self, refobj, base_uri=None, loader=None, loader_kwargs=(),
-            base_doc=None, jsonschema=False, load_on_repr=None, _stack=(),
-            _path=()
+            self, refobj, base_uri="", loader=None, loader_kwargs=(),
+             jsonschema=False, load_on_repr=True, _stack=(), _path=(),
+             _base_doc=None
     ):
         if not isinstance(refobj.get("$ref"), basestring):
             raise ValueError("Not a valid json reference object: %s" % refobj)
         self.__reference__ = refobj
-        self.base_doc = base_doc
+        self.base_doc = _base_doc
         self.base_uri = base_uri
         self.loader = loader or jsonloader
         self.loader_kwargs = dict(loader_kwargs)
@@ -160,8 +162,7 @@ class JsonRef(LazyProxy):
 
         # Relative ref within the base document
         if not uri or uri == self.base_uri and self.base_doc:
-            doc = self.resolve_pointer(self.base_doc, fragment)
-            return JsonRef.replace(doc, **self._ref_kwargs)
+            return self.resolve_pointer(self.base_doc, fragment)
 
         # Remote ref
         try:
@@ -210,12 +211,9 @@ class JsonRef(LazyProxy):
         )
 
     def __repr__(self):
-        load = self.load_on_repr
-        if load is None:
-            load = not self._circular
-        if hasattr(self, "cache") or load:
+        if hasattr(self, "cache") or self.load_on_repr:
             return repr(self.__subject__)
-        return "JsonRef%r" % self.__reference__
+        return "JsonRef(%r)" % self.__reference__
 
 
 class _URIDict(MutableMapping):

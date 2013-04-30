@@ -83,11 +83,17 @@ class TestJsonRef(object):
         assert result == 17
         loader.assert_called_once_with("http://bar.com/foo")
 
-    def test_repr_does_not_loop_by_default(self):
+    def test_repr_does_not_loop(self):
         json = {"a": ["aoeu", {"$ref": "#/a"}]}
+        # By default python repr recursion detection should handle it
         assert (
             repr(JsonRef.replace(json)) ==
-            "{'a': ['aoeu', ['aoeu', JsonRef{'$ref': '#/a'}]]}"
+            "{'a': ['aoeu', [...]]}"
+        )
+        # If we turn of load_on_repr we should get a different representation
+        assert (
+            repr(JsonRef.replace(json, load_on_repr=False)) ==
+            "{'a': ['aoeu', JsonRef({'$ref': '#/a'})]}"
         )
 
     def test_repr_expands_deep_refs_by_default(self):
@@ -104,9 +110,9 @@ class TestJsonRef(object):
         result = JsonRef.replace(json, load_on_repr=False)
         assert (
             repr(sorted(result.items())) ==
-            "[('a', 'string'), ('b', JsonRef{'$ref': '#/a'}), "
-            "('c', JsonRef{'$ref': '#/b'}), ('d', JsonRef{'$ref': '#/c'}), "
-            "('e', JsonRef{'$ref': '#/d'}), ('f', JsonRef{'$ref': '#/e'})]"
+            "[('a', 'string'), ('b', JsonRef({'$ref': '#/a'})), "
+            "('c', JsonRef({'$ref': '#/b'})), ('d', JsonRef({'$ref': '#/c'})), "
+            "('e', JsonRef({'$ref': '#/d'})), ('f', JsonRef({'$ref': '#/e'}))]"
         )
 
     def test_jsonschema_mode_local(self):
@@ -162,6 +168,34 @@ class TestJsonRef(object):
         assert result == "aoeu"
         loader.assert_called_once_with("http://foo.com/other")
 
+
+class TestJsonRefErrors(object):
+
+    def test_basic_error_properties(self):
+        json = {"$ref": "#/x"}
+        result = JsonRef.replace(json)
+        with pytest.raises(JsonRefError) as excinfo:
+            result.__subject__
+        e = excinfo.value
+        assert e.reference == json
+        assert e.uri == "#/x"
+        assert e.base_uri == ""
+        assert e.path == []
+        assert e.stack == ["#/x"]
+        assert type(e.cause) == KeyError
+
+    def test_nested_refs(self):
+        json = {
+            "a": {"$ref": "#/b"},
+            "b": {"$ref": "#/c"},
+            "c": {"$ref": "#/foo"},
+        }
+        result = JsonRef.replace(json)
+        with pytest.raises(JsonRefError) as excinfo:
+            print(result["a"])
+        e = excinfo.value
+        assert e.stack == []
+        assert e.path == ["c"]
 
 
 class TestApi(object):
