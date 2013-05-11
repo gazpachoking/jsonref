@@ -406,16 +406,13 @@ class TestProxies(object):
         self.check_basics(v)
 
     def check_list(self, v):
-        p = self.proxify(v)
         for i in range(len(v)):
             for arg in (i, slice(i), slice(None, i), slice(i, None, -1)):
                 self.check_func(operator.getitem, v, arg)
         self.check_container(v)
 
+        p = self.proxify(v)
         c = list(v)
-        del p[::2]
-        del c[::2]
-        assert p == c
 
         p[1:1] = [23]
         c[1:1] = [23]
@@ -429,8 +426,12 @@ class TestProxies(object):
         c += [4]
         assert p == c
 
+        del p[::2]
+        del c[::2]
+        assert p == c
+
     def check_container(self, v):
-        for op in (list, set, len, lambda x: list(iter(x))):
+        for op in (list, set, len, sorted, lambda x: list(iter(x))):
             self.check_func(op, v)
         self.check_basics(v)
 
@@ -453,7 +454,19 @@ class TestProxies(object):
 
     def test_dicts(self):
         for d in ({"a": 3, 4: 2, 1.5: "b"}, {}, {"": ""}):
-            self.check_container(d)
+            for op in (
+                sorted, set, len, lambda x: sorted(iter(x)),
+                operator.methodcaller("get", "a")
+            ):
+                self.check_func(op, d)
+
+            p = self.proxify(d)
+            # Use sets to make sure order doesn't matter
+            assert set(p.items()) == set(d.items())
+            assert set(p.keys()) == set(d.keys())
+            assert set(p.values()) == set(d.values())
+
+            self.check_basics(d)
 
     def test_immutable(self):
         a = self.proxify(3)
