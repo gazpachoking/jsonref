@@ -14,9 +14,9 @@ objects for Python (supporting 2.6+ including Python 3).
 
 This library lets you use a data structure with JSON reference objects, as if
 the references had been replaced with the referent data. The references are
-evaluated lazily, so nothing is dereferenced until it is used. This also means
-recursive references are supported, as long as you do not try to iterate over
-the entire (infinite) data structure.
+evaluated lazily, so nothing is dereferenced until it is used. Recursive
+references are supported, and create recursive python data structures. (This
+means python's built-in recursive representation with :func:`repr` works.)
 
 .. code-block:: python
 
@@ -57,6 +57,6 @@ object.
     True
     >>> ref.append(5)
     >>> del ref[0]
-    >>> # Actions on the reference affect the real data
+    >>> # Actions on the reference affect the real data (if it is mutable)
     >>> pprint(data)
     {'real': [2, 3, 4, 5], 'ref': [2, 3, 4, 5]}
