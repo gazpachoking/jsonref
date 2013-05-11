@@ -33,20 +33,20 @@ objects for Python (supporting 2.6+ including Python 3).
 :class:`JsonRef` Objects
 ========================
 
-:class:`JsonRef` objects are the backbone of the library, and used to replace
-the JSON reference objects within the data structure. They act as proxies to
-whatever data the reference is pointing to, but only look up that data the
-first time they are accessed. Once JSON reference objects have been replaced
-within your data structure, you can use the data as if it does not contain
-references at all.
+:class:`JsonRef` objects are used to replace the JSON reference objects within
+the data structure. They act as proxies to whatever data the reference is
+pointing to, but only look up that data the first time they are accessed. Once
+JSON reference objects have been substituted in your data structure, you can
+use the data as if it does not contain references at all.
 
-The class method :meth:`JsonRef.replace` will replace all JSON references in
-whatever object you pass it. There are several other options you can pass, seen
-below.
+The primary interface to use :class:`JsonRef` objects is with the class method
+:meth:`JsonRef.replace`. It will return a copy of an object you pass it, with
+all JSON references contained replaced by :class:`JsonRef` objects. There are
+several other options you can pass, seen below.
 
-.. autoclass:: JsonRef(refobj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=None, base_doc=None)
+.. autoclass:: JsonRef(refobj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=True)
 
-    .. automethod:: replace(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=None, base_doc=None)
+    .. automethod:: replace(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=True)
 
     :class:`JsonRef` instances proxy almost all operators and attributes to the
     referent data, which will be loaded when first accessed. The following

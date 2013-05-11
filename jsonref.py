@@ -74,8 +74,10 @@ class JsonRef(LazyProxy):
         :param loader: Callable that takes a URI and returns the parsed JSON
             (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
         :param loader_kwargs: A dict of keyword arguments to pass to loader
-        :param jsonschema: Flag to turn on JSON Schema mode. 'id' keyword
-            changes the `base_uri` for references contained within the object
+        :param jsonschema: Flag to turn on `JSON Schema mode
+            <http://json-schema.org/latest/json-schema-core.html#anchor25>`_.
+            'id' keyword changes the `base_uri` for references contained within
+            the object
         :param load_on_repr: If set to ``False``, :func:`repr` call on a
             :class:`JsonRef` object will not cause the reference to be loaded
             if it hasn't already. (defaults to ``True``)
