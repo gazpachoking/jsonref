@@ -57,6 +57,6 @@ object.
     True
     >>> ref.append(5)
     >>> del ref[0]
-    # Actions on the reference affect the real data
+    >>> # Actions on the reference affect the real data
     >>> pprint(data)
     {'real': [2, 3, 4, 5], 'ref': [2, 3, 4, 5]}
