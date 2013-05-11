@@ -59,6 +59,38 @@ class TestJsonRef(object):
             with pytest.raises(JsonRefError):
                 result[key].__subject__
 
+    def test_actual_references_not_copies(self):
+        json = {
+            "a": ["foobar"],
+            "b": {"$ref": "#/a"},
+            "c": {"$ref": "#/a"},
+            "d": {"$ref": "#/c"}
+        }
+        result = JsonRef.replace(json)
+        assert result["b"].__subject__ is result["a"]
+        assert result["c"].__subject__ is result["a"]
+        assert result["d"].__subject__ is result["a"]
+
+    def test_recursive_data_structures_local(self):
+        json = {"a": "foobar", "b": {"$ref": "#"}}
+        result = JsonRef.replace(json)
+        assert result["b"].__subject__ is result
+
+    def test_recursive_data_structures_remote(self):
+        json1 = {"a": {"$ref": "/json2"}}
+        json2 = {"b": {"$ref": "/json1"}}
+        loader = mock.Mock(return_value=json2)
+        result = JsonRef.replace(json1, base_uri="/json1", loader=loader)
+        assert result["a"]["b"].__subject__ is result
+        assert result["a"].__subject__ is result["a"]["b"]["a"].__subject__
+
+    def test_recursive_data_structures_remote_fragment(self):
+        json1 = {"a": {"$ref": "/json2#/b"}}
+        json2 = {"b": {"$ref": "/json1"}}
+        loader = mock.Mock(return_value=json2)
+        result = JsonRef.replace(json1, base_uri="/json1", loader=loader)
+        assert result["a"].__subject__ is result
+
     def test_custom_loader(self):
         data = {"$ref": "foo"}
         loader = mock.Mock(return_value=42)
@@ -172,17 +204,16 @@ class TestJsonRef(object):
 class TestJsonRefErrors(object):
 
     def test_basic_error_properties(self):
-        json = {"$ref": "#/x"}
+        json = [{"$ref": "#/x"}]
         result = JsonRef.replace(json)
         with pytest.raises(JsonRefError) as excinfo:
-            result.__subject__
+            result[0].__subject__
         e = excinfo.value
-        assert e.reference == json
+        assert e.reference == json[0]
         assert e.uri == "#/x"
         assert e.base_uri == ""
-        assert e.path == []
-        assert e.stack == ["#/x"]
-        assert type(e.cause) == KeyError
+        assert e.path == [0]
+        assert type(e.cause) == TypeError
 
     def test_nested_refs(self):
         json = {
@@ -194,7 +225,6 @@ class TestJsonRefErrors(object):
         with pytest.raises(JsonRefError) as excinfo:
             print(result["a"])
         e = excinfo.value
-        assert e.stack == []
         assert e.path == ["c"]
 
 

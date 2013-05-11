@@ -38,15 +38,13 @@ __version__ = "0.1-dev"
 
 class JsonRefError(Exception):
     def __init__(
-            self, message, reference, uri="", base_uri="", path=(), stack=(),
-            cause=None
+            self, message, reference, uri="", base_uri="", path=(), cause=None
     ):
         self.message = message
         self.reference = reference
         self.uri = uri
         self.base_uri = base_uri
         self.path = list(path)
-        self.stack = list(stack)
         self.cause = self.__cause__ = cause
 
     def __repr__(self):
@@ -63,7 +61,7 @@ class JsonRef(LazyProxy):
     __notproxied__ = ("__reference__",)
 
     @classmethod
-    def replace(cls, obj, **kwargs):
+    def replace(cls, obj, _recursive=False, **kwargs):
         """
         Returns a deep copy of `obj` with all contained JSON reference objects
         replaced with :class:`JsonRef` instances.
@@ -80,24 +78,21 @@ class JsonRef(LazyProxy):
             changes the `base_uri` for references contained within the object
         :param load_on_repr: If set to ``False``, :func:`repr` call on a
             :class:`JsonRef` object will not cause the reference to be loaded
-            if it has't already. (defaults to ``True``)
-        :param _base_doc: Document at `base_uri` for local dereferencing
-            (defaults to `obj`)
+            if it hasn't already. (defaults to ``True``)
 
         """
 
-        # base_doc will be set to the returned object to create recursive
-        # structures
-        base_doc = Proxy(None)
-        kwargs.setdefault("_base_doc", base_doc)
+        store = kwargs.setdefault("_store", _URIDict())
+        base_uri, frag = urlparse.urldefrag(kwargs.get("base_uri", ""))
+        store_uri = None  # If this does not get set, we won't store the result
+        if not frag and not _recursive:
+            store_uri = base_uri
         try:
             if kwargs.get("jsonschema") and isinstance(obj["id"], basestring):
-                kwargs.update(
-                    base_uri=urlparse.urljoin(
-                        kwargs.get("base_uri", ""), obj["id"]
-                    ),
-                    _base_doc=base_doc
+                kwargs["base_uri"] = urlparse.urljoin(
+                    kwargs.get("base_uri", ""), obj["id"]
                 )
+                store_uri = kwargs["base_uri"]
         except (TypeError, LookupError):
             pass
 
@@ -111,46 +106,44 @@ class JsonRef(LazyProxy):
 
         # If our obj was not a json reference object, iterate through it,
         # replacing children with JsonRefs
+        kwargs["_recursive"] = True
+        path = list(kwargs.pop("_path", ()))
         if isinstance(obj, Mapping):
-            path = list(kwargs.pop("_path", ()))
             obj = type(obj)(
                 (k, cls.replace(v, _path=path+[k], **kwargs))
                 for k, v in iteritems(obj)
             )
         elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
-            path = list(kwargs.pop("_path", ()))
             obj = type(obj)(
-                cls.replace(i, _path=path+[i], **kwargs) for i in obj
+                cls.replace(v, _path=path+[i], **kwargs) for i, v in enumerate(obj)
             )
-        base_doc.__subject__ = obj
+        if store_uri is not None:
+            store[store_uri] = obj
         return obj
 
     def __init__(
             self, refobj, base_uri="", loader=None, loader_kwargs=(),
-             jsonschema=False, load_on_repr=True, _stack=(), _path=(),
-             _base_doc=None
+             jsonschema=False, load_on_repr=True, _path=(), _store=None
     ):
         if not isinstance(refobj.get("$ref"), basestring):
             raise ValueError("Not a valid json reference object: %s" % refobj)
         self.__reference__ = refobj
-        self.base_doc = _base_doc
         self.base_uri = base_uri
         self.loader = loader or jsonloader
         self.loader_kwargs = dict(loader_kwargs)
         self.jsonschema = jsonschema
         self.load_on_repr = load_on_repr
-        self.stack = list(_stack)
         self.path = list(_path)
-        # If we encounter a loop
-        self._circular = self.full_uri in self.stack
-        self.stack.append(self.full_uri)
+        self.store = _store  # Use the same object to be shared with children
+        if self.store is None:
+            self.store = _URIDict()
 
     @property
     def _ref_kwargs(self):
         return dict(
-            base_uri=self.base_uri, base_doc=self.base_doc, loader=self.loader,
+            base_uri=self.base_uri, loader=self.loader,
             loader_kwargs=self.loader_kwargs, jsonschema=self.jsonschema,
-            load_on_repr=self.load_on_repr, _stack=self.stack, _path=self.path
+            load_on_repr=self.load_on_repr, _path=self.path, _store=self.store
         )
 
     @property
@@ -160,20 +153,24 @@ class JsonRef(LazyProxy):
     def callback(self):
         uri, fragment = urlparse.urldefrag(self.full_uri)
 
-        # Relative ref within the base document
-        if not uri or uri == self.base_uri and self.base_doc:
-            return self.resolve_pointer(self.base_doc, fragment)
+        # If we already looked this up, return a reference to the same object
+        if uri in self.store:
+            result = self.resolve_pointer(self.store[uri], fragment)
+        else:
+            # Remote ref
+            try:
+                base_doc = self.loader(uri, **self.loader_kwargs)
+            except Exception as e:
+                self._error("%s: %s" % (e.__class__.__name__, unicode(e)), cause=e)
 
-        # Remote ref
-        try:
-            base_doc = self.loader(uri, **self.loader_kwargs)
-        except Exception as e:
-            self._error("%s: %s" % (e.__class__.__name__, unicode(e)), cause=e)
-
-        doc = self.resolve_pointer(base_doc, fragment)
-        kwargs = self._ref_kwargs
-        kwargs.update(base_doc=base_doc, base_uri=uri)
-        return JsonRef.replace(doc, **kwargs)
+            kwargs = self._ref_kwargs
+            kwargs["base_uri"] = uri
+            base_doc = JsonRef.replace(base_doc, **kwargs)
+            result = self.resolve_pointer(base_doc, fragment)
+        if hasattr(result, "__subject__"):
+            # TODO: Circular ref detection
+            result = result.__subject__
+        return result
 
     def resolve_pointer(self, document, pointer):
         """
@@ -206,7 +203,6 @@ class JsonRef(LazyProxy):
             uri=self.full_uri,
             base_uri=self.base_uri,
             path=self.path,
-            stack=self.stack,
             cause=cause
         )
 
