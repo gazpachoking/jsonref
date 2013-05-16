@@ -1,3 +1,4 @@
+import functools
 import json
 import operator
 import sys
@@ -73,7 +74,6 @@ class JsonRef(LazyProxy):
         :param base_uri: URI to resolve relative references against
         :param loader: Callable that takes a URI and returns the parsed JSON
             (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
-        :param loader_kwargs: A dict of keyword arguments to pass to loader
         :param jsonschema: Flag to turn on `JSON Schema mode
             <http://json-schema.org/latest/json-schema-core.html#anchor25>`_.
             'id' keyword changes the `base_uri` for references contained within
@@ -124,15 +124,14 @@ class JsonRef(LazyProxy):
         return obj
 
     def __init__(
-            self, refobj, base_uri="", loader=None, loader_kwargs=(),
-             jsonschema=False, load_on_repr=True, _path=(), _store=None
+            self, refobj, base_uri="", loader=None, jsonschema=False,
+            load_on_repr=True, _path=(), _store=None
     ):
         if not isinstance(refobj.get("$ref"), basestring):
             raise ValueError("Not a valid json reference object: %s" % refobj)
         self.__reference__ = refobj
         self.base_uri = base_uri
         self.loader = loader or jsonloader
-        self.loader_kwargs = dict(loader_kwargs)
         self.jsonschema = jsonschema
         self.load_on_repr = load_on_repr
         self.path = list(_path)
@@ -144,8 +143,8 @@ class JsonRef(LazyProxy):
     def _ref_kwargs(self):
         return dict(
             base_uri=self.base_uri, loader=self.loader,
-            loader_kwargs=self.loader_kwargs, jsonschema=self.jsonschema,
-            load_on_repr=self.load_on_repr, _path=self.path, _store=self.store
+            jsonschema=self.jsonschema, load_on_repr=self.load_on_repr,
+            _path=self.path, _store=self.store
         )
 
     @property
@@ -161,7 +160,7 @@ class JsonRef(LazyProxy):
         else:
             # Remote ref
             try:
-                base_doc = self.loader(uri, **self.loader_kwargs)
+                base_doc = self.loader(uri)
             except Exception as e:
                 self._error("%s: %s" % (e.__class__.__name__, unicode(e)), cause=e)
 
@@ -268,7 +267,7 @@ class JsonLoader(object):
         Return the loaded JSON referred to by `uri`
 
         :param uri: The URI of the JSON document to load
-        :param kwargs: Keyword arguments passed to :func:`json.loads`
+        :param **kwargs: Keyword arguments passed to :func:`json.loads`
 
         """
         if uri in self.store:
@@ -300,54 +299,85 @@ class JsonLoader(object):
 jsonloader = JsonLoader()
 
 
-def load(fp, ref_kwargs=(), **kwargs):
+def load(
+        fp, base_uri="", loader=None, jsonschema=False, load_on_repr=True,
+        **kwargs
+):
     """
     Drop in replacement for :func:`json.load`, where JSON references are
     proxied to their referent data.
 
     :param fp: File-like object containing JSON document
-    :param ref_kwargs: A dict of keyword arguments to pass to :class:`JsonRef`
-    :param kwargs: All other keyword arguments will be passed to
+    :param **kwargs: This function takes any of the keyword arguments from
+        :meth:`JsonRef.replace`. Any other keyword arguments will be passed to
         :func:`json.load`
 
     """
 
-    ref_kwargs = dict(ref_kwargs)
-    ref_kwargs.setdefault("loader_kwargs", kwargs)
-    return JsonRef.replace(json.load(fp, **kwargs), **ref_kwargs)
+    if loader is None:
+        loader = functools.partial(jsonloader, **kwargs)
+
+    return JsonRef.replace(
+        json.load(fp, **kwargs),
+        base_uri=base_uri,
+        loader=loader,
+        jsonschema=jsonschema,
+        load_on_repr=load_on_repr
+    )
 
 
-def loads(s, ref_kwargs=(), **kwargs):
+def loads(
+        s, base_uri="", loader=None, jsonschema=False, load_on_repr=True,
+        **kwargs
+):
     """
     Drop in replacement for :func:`json.loads`, where JSON references are
     proxied to their referent data.
 
     :param s: String containing JSON document
-    :param ref_kwargs: A dict of keyword arguments to pass to :class:`JsonRef`
-    :param kwargs: All other keyword arguments will be passed to
+    :param **kwargs: This function takes any of the keyword arguments from
+        :meth:`JsonRef.replace`. Any other keyword arguments will be passed to
         :func:`json.loads`
 
     """
 
-    ref_kwargs = dict(ref_kwargs)
-    ref_kwargs.setdefault("loader_kwargs", kwargs)
-    return JsonRef.replace(json.loads(s, **kwargs), **ref_kwargs)
+    if loader is None:
+        loader = functools.partial(jsonloader, **kwargs)
+
+    return JsonRef.replace(
+        json.loads(s, **kwargs),
+        base_uri=base_uri,
+        loader=loader,
+        jsonschema=jsonschema,
+        load_on_repr=load_on_repr
+    )
 
 
-def load_uri(uri, ref_kwargs=(), **kwargs):
+def load_uri(
+        uri, base_uri=None, loader=None, jsonschema=False, load_on_repr=True
+):
     """
     Load JSON data from ``uri`` with JSON references proxied to their referent
     data.
 
     :param uri: URI to fetch the JSON from
+    :param **kwargs: This function takes any of the keyword arguments from
+        :meth:`JsonRef.replace`
 
     """
 
-    ref_kwargs = dict(ref_kwargs)
-    ref_kwargs.setdefault("loader_kwargs", kwargs)
-    ref_kwargs.setdefault("base_uri", uri)
-    loader = ref_kwargs.get("loader", jsonloader)
-    return JsonRef.replace(loader(uri, **kwargs), **ref_kwargs)
+    if loader is None:
+        loader = jsonloader
+    if base_uri is None:
+        base_uri = uri
+
+    return JsonRef.replace(
+        loader(uri),
+        base_uri=base_uri,
+        loader=loader,
+        jsonschema=jsonschema,
+        load_on_repr=load_on_repr
+    )
 
 
 def dump(obj, fp, **kwargs):
