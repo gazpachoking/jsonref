@@ -62,7 +62,7 @@ class JsonRef(LazyProxy):
     __notproxied__ = ("__reference__",)
 
     @classmethod
-    def replace(cls, obj, _recursive=False, **kwargs):
+    def replace_refs(cls, obj, _recursive=False, **kwargs):
         """
         Returns a deep copy of `obj` with all contained JSON reference objects
         replaced with :class:`JsonRef` instances.
@@ -112,12 +112,12 @@ class JsonRef(LazyProxy):
         path = list(kwargs.pop("_path", ()))
         if isinstance(obj, Mapping):
             obj = type(obj)(
-                (k, cls.replace(v, _path=path+[k], **kwargs))
+                (k, cls.replace_refs(v, _path=path+[k], **kwargs))
                 for k, v in iteritems(obj)
             )
         elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
             obj = type(obj)(
-                cls.replace(v, _path=path+[i], **kwargs) for i, v in enumerate(obj)
+                cls.replace_refs(v, _path=path+[i], **kwargs) for i, v in enumerate(obj)
             )
         if store_uri is not None:
             store[store_uri] = obj
@@ -166,7 +166,7 @@ class JsonRef(LazyProxy):
 
             kwargs = self._ref_kwargs
             kwargs["base_uri"] = uri
-            base_doc = JsonRef.replace(base_doc, **kwargs)
+            base_doc = JsonRef.replace_refs(base_doc, **kwargs)
             result = self.resolve_pointer(base_doc, fragment)
         if hasattr(result, "__subject__"):
             # TODO: Circular ref detection
@@ -309,7 +309,7 @@ def load(
 
     :param fp: File-like object containing JSON document
     :param **kwargs: This function takes any of the keyword arguments from
-        :meth:`JsonRef.replace`. Any other keyword arguments will be passed to
+        :meth:`JsonRef.replace_refs`. Any other keyword arguments will be passed to
         :func:`json.load`
 
     """
@@ -317,7 +317,7 @@ def load(
     if loader is None:
         loader = functools.partial(jsonloader, **kwargs)
 
-    return JsonRef.replace(
+    return JsonRef.replace_refs(
         json.load(fp, **kwargs),
         base_uri=base_uri,
         loader=loader,
@@ -336,7 +336,7 @@ def loads(
 
     :param s: String containing JSON document
     :param **kwargs: This function takes any of the keyword arguments from
-        :meth:`JsonRef.replace`. Any other keyword arguments will be passed to
+        :meth:`JsonRef.replace_refs`. Any other keyword arguments will be passed to
         :func:`json.loads`
 
     """
@@ -344,7 +344,7 @@ def loads(
     if loader is None:
         loader = functools.partial(jsonloader, **kwargs)
 
-    return JsonRef.replace(
+    return JsonRef.replace_refs(
         json.loads(s, **kwargs),
         base_uri=base_uri,
         loader=loader,
@@ -362,7 +362,7 @@ def load_uri(
 
     :param uri: URI to fetch the JSON from
     :param **kwargs: This function takes any of the keyword arguments from
-        :meth:`JsonRef.replace`
+        :meth:`JsonRef.replace_refs`
 
     """
 
@@ -371,7 +371,7 @@ def load_uri(
     if base_uri is None:
         base_uri = uri
 
-    return JsonRef.replace(
+    return JsonRef.replace_refs(
         loader(uri),
         base_uri=base_uri,
         loader=loader,

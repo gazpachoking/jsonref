@@ -21,9 +21,9 @@ objects for Python (supporting 2.6+ including Python 3).
         "reference": {"$ref": "#/data/1"}
     }
 
-    # The JsonRef.replace class method will replace JSON references within the
-    # document
-    pprint(JsonRef.replace(document))
+    # The JsonRef.replace_refs class method will return a copy of the document
+    # with refs replaced by :class:`JsonRef` objects
+    pprint(JsonRef.replace_refs(document))
 
 .. testoutput::
 
@@ -40,13 +40,13 @@ JSON reference objects have been substituted in your data structure, you can
 use the data as if it does not contain references at all.
 
 The primary interface to use :class:`JsonRef` objects is with the class method
-:meth:`JsonRef.replace`. It will return a copy of an object you pass it, with
+:meth:`JsonRef.replace_refs`. It will return a copy of an object you pass it, with
 all JSON references contained replaced by :class:`JsonRef` objects. There are
 several other options you can pass, seen below.
 
 .. autoclass:: JsonRef(refobj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=True)
 
-    .. automethod:: replace(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=True)
+    .. automethod:: replace_refs(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=True)
 
     :class:`JsonRef` instances proxy almost all operators and attributes to the
     referent data, which will be loaded when first accessed. The following
