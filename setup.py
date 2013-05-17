@@ -28,7 +28,7 @@ classifiers = [
 setup(
     name="jsonref",
     version=__version__,
-    py_modules=["jsonref", "lazyproxy"],
+    py_modules=["jsonref", "proxytypes"],
     author="Chase Sterling",
     author_email="chase.sterling@gmail.com",
     classifiers=classifiers,
