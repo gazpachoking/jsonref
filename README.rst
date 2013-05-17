@@ -13,10 +13,8 @@ jsonref
 objects for Python (supporting 2.6+ including Python 3).
 
 This library lets you use a data structure with JSON reference objects, as if
-the references had been replaced with the referent data. The references are
-evaluated lazily, so nothing is dereferenced until it is used. Recursive
-references are supported, and create recursive python data structures. (This
-means python's built-in recursive representation with :func:`repr` works.)
+the references had been replaced with the referent data.
+
 
 .. code-block:: python
 
@@ -29,16 +27,22 @@ means python's built-in recursive representation with :func:`repr` works.)
     >>> pprint(data)  # Reference is not evaluated until here
     {'real': [1, 2, 3, 4], 'ref': [1, 2, 3, 4]}
 
-References objects are replaced by lazy lookup proxy objects
-(:class:`JsonRef`.) The proxies are almost completely transparent,
-and support almost all operations on the underlying data. They differ in
-operation with the built-in function :func:`type`, and with the
-:attr:`JsonRef.__subject__` attribute, which holds the actual object, and
-:attr:`JsonRef.__reference__` attribute, which holds the original reference
-object.
+
+Features
+--------
+
+* References are evaluated lazily. Nothing is dereferenced until it is used.
+
+* Recursive references are supported, and create recursive python data
+  structures.
+
+
+References objects are actually replaced by lazy lookup proxy objects which are
+almost completely transparent.
 
 .. code-block:: python
 
+    >>> data = jsonref.loads('{"real": [1, 2, 3, 4], "ref": {"$ref": "#/real"}}')
     >>> # You can tell it is a proxy by using the type function
     >>> type(data["real"]), type(data["ref"])
     (<class 'list'>, <class 'jsonref.JsonRef'>)
