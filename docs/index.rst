@@ -44,9 +44,9 @@ The primary interface to use :class:`JsonRef` objects is with the class method
 all JSON references contained replaced by :class:`JsonRef` objects. There are
 several other options you can pass, seen below.
 
-.. autoclass:: JsonRef(refobj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=True)
+.. autoclass:: JsonRef(refobj, base_uri=None, loader=None, jsonschema=False, load_on_repr=True)
 
-    .. automethod:: replace_refs(obj, base_uri=None, loader=None, loader_kwargs=(), jsonschema=False, load_on_repr=True)
+    .. automethod:: replace_refs(obj, base_uri=None, loader=None, jsonschema=False, load_on_repr=True)
 
     :class:`JsonRef` instances proxy almost all operators and attributes to the
     referent data, which will be loaded when first accessed. The following
@@ -63,6 +63,21 @@ several other options you can pass, seen below.
         will not cause the referent data to be loaded.
 
 
+Loading a document at a given URI
+=================================
+
+In order to actually get and parse the JSON at a given URI, :class:`JsonRef`
+objects pass the URI to a callable, set with the keyword argument ``loader``.
+This callable must take the URI as an argument, and return the parsed JSON
+referred to by that URI.
+
+The :class:`JsonLoader` class is provided to fill this role, and a default
+instance of it will be used for all refs unless a custom one is specified.
+
+.. autoclass:: JsonLoader
+    :members: __call__
+
+
 :mod:`json` module drop in replacement functions
 ================================================
 
@@ -74,12 +89,16 @@ load
 
 :func:`load` and :func:`loads` work just like their
 :mod:`json` counterparts, except for references will already be replaced in the
-return values. If you need to pass in custom parameters to :class:`JsonRef`,
-keyword arguments can be provided by the `ref_kwargs` argument.
+return values.
 
 .. autofunction:: load
 
 .. autofunction:: loads
+
+There is also a convenience function provided to load and process references on
+a document at a given uri using the specified ``loader``
+
+.. autofunction:: load_uri
 
 dump
 ----

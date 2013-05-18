@@ -248,17 +248,17 @@ class _URIDict(MutableMapping):
 class JsonLoader(object):
     """
     Provides a callable which takes a URI, and returns the loaded JSON referred
-    to by that URI.
+    to by that URI. Uses :mod:`requests` if available for HTTP URIs, and falls
+    back to :mod:`urllib`. By default it keeps a cache of previously loaded
+    documents.
+
+    :param store: A pre-populated dictionary matching URIs to loaded JSON
+        documents
+    :param cache_results: If this is set to false, the internal cache of
+        loaded JSON documents is not used
 
     """
     def __init__(self, store=(), cache_results=True):
-        """
-        :param store: A pre-populated dictionary matching URIs to loaded JSON
-            documents
-        :param cache_results: If this is set to false, the internal cache of
-            loaded JSON documents is not used
-
-        """
         self.store = _URIDict(store)
         self.cache_results = cache_results
 
@@ -267,7 +267,7 @@ class JsonLoader(object):
         Return the loaded JSON referred to by `uri`
 
         :param uri: The URI of the JSON document to load
-        :param **kwargs: Keyword arguments passed to :func:`json.loads`
+        :param kwargs: Keyword arguments passed to :func:`json.loads`
 
         """
         if uri in self.store:
@@ -308,7 +308,7 @@ def load(
     proxied to their referent data.
 
     :param fp: File-like object containing JSON document
-    :param **kwargs: This function takes any of the keyword arguments from
+    :param kwargs: This function takes any of the keyword arguments from
         :meth:`JsonRef.replace_refs`. Any other keyword arguments will be passed to
         :func:`json.load`
 
@@ -335,7 +335,7 @@ def loads(
     proxied to their referent data.
 
     :param s: String containing JSON document
-    :param **kwargs: This function takes any of the keyword arguments from
+    :param kwargs: This function takes any of the keyword arguments from
         :meth:`JsonRef.replace_refs`. Any other keyword arguments will be passed to
         :func:`json.loads`
 
@@ -361,7 +361,7 @@ def load_uri(
     data.
 
     :param uri: URI to fetch the JSON from
-    :param **kwargs: This function takes any of the keyword arguments from
+    :param kwargs: This function takes any of the keyword arguments from
         :meth:`JsonRef.replace_refs`
 
     """
