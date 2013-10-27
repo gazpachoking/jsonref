@@ -64,3 +64,9 @@ almost completely transparent.
     >>> # Actions on the reference affect the real data (if it is mutable)
     >>> pprint(data)
     {'real': [2, 3, 4, 5], 'ref': [2, 3, 4, 5]}
+
+
+.. image:: https://d2weczhvl823v0.cloudfront.net/gazpachoking/jsonref/trend.png
+   :alt: Bitdeli badge
+   :target: https://bitdeli.com/free
+
