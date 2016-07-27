@@ -1,6 +1,7 @@
 import functools
 import json
 import operator
+import re
 import sys
 import warnings
 
@@ -181,10 +182,20 @@ class JsonRef(LazyProxy):
         :argument str pointer: a json pointer URI fragment to resolve within it
 
         """
-        parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
+        # Do only split at single forward slashes which are not prefixed by a caret
+        parts = re.split(r"(?<!\^)/", unquote(pointer.lstrip("/"))) if pointer else []
 
         for part in parts:
-            part = part.replace("~1", "/").replace("~0", "~")
+            # Restore escaped slashes and carets
+            replacements = {
+                r"^/": r"/",
+                r"^^": r"^",
+            }
+            part = re.sub(
+                '|'.join(re.escape(key) for key in replacements.keys()),
+                lambda k: replacements[k.group(0)],
+                part
+            )
             if isinstance(document, Sequence):
                 # Try to turn an array index to an int
                 try:
