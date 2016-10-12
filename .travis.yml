@@ -19,3 +19,8 @@ script:
   - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then sphinx-build -b doctest docs _temp; fi
 after_success:
   - coveralls
+matrix:
+  fast_finish: true
+  allow_failures:
+    - python: pypy
+    - python: pypy3
