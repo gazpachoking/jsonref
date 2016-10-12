@@ -7,7 +7,12 @@ python:
   - "3.3"
 install:
   - python setup.py -q install
-  - pip install pytest-cov coveralls
+
+  # Coverage 4.0 doesn't support Python 3.2
+  - if [ "$TRAVIS_PYTHON_VERSION" == "3.2" ]; then pip install coverage==3.7.1; fi
+  - if [ "$TRAVIS_PYTHON_VERSION" != "3.2" ]; then pip install coverage; fi
+
+  - pip install pytest-cov
   - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then pip install sphinx; fi
 script:
   - py.test tests.py --cov jsonref --cov proxytypes --cov-report term-missing
