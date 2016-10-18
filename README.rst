@@ -1,6 +1,10 @@
 jsonref
 =======
 
+
+.. image:: https://readthedocs.org/projects/jsonref/badge/?version=latest
+    :target: https://jsonref.readthedocs.io/en/latest/
+
 .. image:: https://travis-ci.org/gazpachoking/jsonref.png?branch=master
     :target: https://travis-ci.org/gazpachoking/jsonref
 
