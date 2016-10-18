@@ -3,15 +3,11 @@ python:
   - "pypy"
   - "2.6"
   - "2.7"
-  - "3.2"
   - "3.3"
 install:
   - python setup.py -q install
 
-  # Coverage 4.0 doesn't support Python 3.2
-  - if [ "$TRAVIS_PYTHON_VERSION" == "3.2" ]; then pip install coverage==3.7.1; fi
-  - if [ "$TRAVIS_PYTHON_VERSION" != "3.2" ]; then pip install coverage; fi
-
+  - pip install coverage
   - pip install pytest-cov
   - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then pip install sphinx; fi
 script:
@@ -20,4 +16,5 @@ script:
   - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then python -m doctest README.rst; fi
   - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then sphinx-build -b doctest docs _temp; fi
 after_success:
+  - pip install coveralls
   - coveralls
