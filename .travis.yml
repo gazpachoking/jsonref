@@ -1,10 +1,13 @@
 language: python
 python:
   - "pypy"
+  - "pypy3"
   - "2.6"
   - "2.7"
   - "3.2"
   - "3.3"
+  - "3.4"
+  - "3.5"
 install:
   - python setup.py -q install
   - pip install pytest-cov coveralls
@@ -16,3 +19,8 @@ script:
   - if [[ $TRAVIS_PYTHON_VERSION == '3.3' ]]; then sphinx-build -b doctest docs _temp; fi
 after_success:
   - coveralls
+matrix:
+  fast_finish: true
+  allow_failures:
+    - python: pypy
+    - python: pypy3
