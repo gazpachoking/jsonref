@@ -77,7 +77,7 @@ doctest_global_setup = dedent("""
     from jsonref import *
 """)
 
-intersphinx_mapping = {"python": ("http://docs.python.org/3.3", None)}
+intersphinx_mapping = {"python": ("https://docs.python.org/3.3", None)}
 
 
 # -- Options for HTML output ---------------------------------------------------
