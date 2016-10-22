@@ -35,5 +35,5 @@ setup(
     description="An implementation of JSON Reference for Python",
     license="MIT",
     long_description=long_description,
-    url="http://github.com/gazpachoking/jsonref",
+    url="https://github.com/gazpachoking/jsonref",
 )
