@@ -52,6 +52,9 @@ class JsonRefError(Exception):
     def __repr__(self):
         return "<%s: %r>" % (self.__class__.__name__, self.message)
 
+    def __str__(self):
+        return str(self.message)
+
 
 class JsonRef(LazyProxy):
     """
