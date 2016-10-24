@@ -1,6 +1,18 @@
-from distutils.core import setup
+from distutils.core import setup, Command
 
 from jsonref import __version__
+
+
+class PyTest(Command):
+    user_options = []
+    def initialize_options(self):
+        pass
+    def finalize_options(self):
+        pass
+    def run(self):
+        import sys,subprocess
+        errno = subprocess.call(['py.test', 'tests.py'])
+        raise SystemExit(errno)
 
 
 with open("README.rst") as readme:
@@ -36,4 +48,7 @@ setup(
     license="MIT",
     long_description=long_description,
     url="https://github.com/gazpachoking/jsonref",
+    cmdclass={
+        'test': PyTest,
+    },
 )
