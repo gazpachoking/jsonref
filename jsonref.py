@@ -4,6 +4,7 @@ import operator
 import re
 import sys
 import warnings
+from os import environ
 
 try:
     from collections import Mapping, MutableMapping, Sequence
@@ -162,9 +163,9 @@ class JsonRef(LazyProxy):
         if uri in self.store:
             result = self.resolve_pointer(self.store[uri], fragment)
         else:
-            # Remote ref
+            # Remote ref or env
             try:
-                base_doc = self.loader(uri)
+                base_doc = environ[uri[len('env:'):]] if uri.startswith('env:') else self.loader(uri)
             except Exception as e:
                 self._error("%s: %s" % (e.__class__.__name__, unicode(e)), cause=e)
 
