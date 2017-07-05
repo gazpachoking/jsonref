@@ -5,19 +5,21 @@ from jsonref import __version__
 
 class PyTest(Command):
     user_options = []
+
     def initialize_options(self):
         pass
+
     def finalize_options(self):
         pass
+
     def run(self):
-        import sys,subprocess
+        import sys, subprocess
         errno = subprocess.call(['py.test', 'tests.py'])
         raise SystemExit(errno)
 
 
 with open("README.rst") as readme:
     long_description = readme.read()
-
 
 classifiers = [
     "Development Status :: 1 - Planning",
@@ -35,7 +37,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-
 
 setup(
     name="jsonref",

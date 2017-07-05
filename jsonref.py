@@ -16,6 +16,7 @@ if PY3:
     from urllib import parse as urlparse
     from urllib.parse import unquote
     from urllib.request import urlopen
+
     unicode = str
     basestring = str
     iteritems = operator.methodcaller("items")
@@ -23,11 +24,13 @@ else:
     import urlparse
     from urllib import unquote
     from urllib2 import urlopen
+
     iteritems = operator.methodcaller("iteritems")
 
 try:
     # If requests >=1.0 is available, we will use it
     import requests
+
     if not callable(requests.Response.json):
         requests = None
 except ImportError:
@@ -39,9 +42,7 @@ __version__ = "0.2-dev"
 
 
 class JsonRefError(Exception):
-    def __init__(
-            self, message, reference, uri="", base_uri="", path=(), cause=None
-    ):
+    def __init__(self, message, reference, uri="", base_uri="", path=(), cause=None):
         self.message = message
         self.reference = reference
         self.uri = uri
@@ -116,21 +117,20 @@ class JsonRef(LazyProxy):
         path = list(kwargs.pop("_path", ()))
         if isinstance(obj, Mapping):
             obj = type(obj)(
-                (k, cls.replace_refs(v, _path=path+[k], **kwargs))
+                (k, cls.replace_refs(v, _path=path + [k], **kwargs))
                 for k, v in iteritems(obj)
             )
         elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
             obj = type(obj)(
-                cls.replace_refs(v, _path=path+[i], **kwargs) for i, v in enumerate(obj)
+                cls.replace_refs(v, _path=path + [i], **kwargs) for i, v in enumerate(obj)
             )
         if store_uri is not None:
             store[store_uri] = obj
         return obj
 
-    def __init__(
-            self, refobj, base_uri="", loader=None, jsonschema=False,
-            load_on_repr=True, _path=(), _store=None
-    ):
+    def __init__(self, refobj, base_uri="", loader=None, jsonschema=False,
+                 load_on_repr=True, _path=(), _store=None):
+        super(LazyProxy, self).__init__(callback=self.callback)
         if not isinstance(refobj.get("$ref"), basestring):
             raise ValueError("Not a valid json reference object: %s" % refobj)
         self.__reference__ = refobj
@@ -272,6 +272,7 @@ class JsonLoader(object):
         loaded JSON documents is not used
 
     """
+
     def __init__(self, store=(), cache_results=True):
         self.store = _URIDict(store)
         self.cache_results = cache_results
@@ -310,13 +311,11 @@ class JsonLoader(object):
 
         return result
 
+
 jsonloader = JsonLoader()
 
 
-def load(
-        fp, base_uri="", loader=None, jsonschema=False, load_on_repr=True,
-        **kwargs
-):
+def load(fp, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kwargs):
     """
     Drop in replacement for :func:`json.load`, where JSON references are
     proxied to their referent data.
@@ -340,10 +339,7 @@ def load(
     )
 
 
-def loads(
-        s, base_uri="", loader=None, jsonschema=False, load_on_repr=True,
-        **kwargs
-):
+def loads(s, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kwargs):
     """
     Drop in replacement for :func:`json.loads`, where JSON references are
     proxied to their referent data.
@@ -367,9 +363,7 @@ def loads(
     )
 
 
-def load_uri(
-        uri, base_uri=None, loader=None, jsonschema=False, load_on_repr=True
-):
+def load_uri(uri, base_uri=None, loader=None, jsonschema=False, load_on_repr=True):
     """
     Load JSON data from ``uri`` with JSON references proxied to their referent
     data.
@@ -430,14 +424,17 @@ def _ref_encoder_factory(cls):
             if hasattr(o, "__reference__"):
                 return o.__reference__
             return super(JSONRefEncoder, cls).default(o)
+
         # Python 2.6 doesn't work with the default method
         def _iterencode(self, o, *args, **kwargs):
             if hasattr(o, "__reference__"):
                 o = o.__reference__
             return super(JSONRefEncoder, self)._iterencode(o, *args, **kwargs)
+
         # Pypy doesn't work with either of the other methods
         def _encode(self, o, *args, **kwargs):
             if hasattr(o, "__reference__"):
                 o = o.__reference__
             return super(JSONRefEncoder, self)._encode(o, *args, **kwargs)
+
     return JSONRefEncoder

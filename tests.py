@@ -1,7 +1,8 @@
-from copy import deepcopy
 import operator
 import json
 import itertools
+
+from copy import deepcopy
 
 try:
     from unittest import mock
@@ -18,6 +19,8 @@ if PY3:
     long = int
     div = operator.truediv
     idiv = operator.itruediv
+
+
     def cmp(a, b):
         return (a > b) - (a < b)
 else:
@@ -202,7 +205,6 @@ class TestJsonRef(object):
 
 
 class TestJsonRefErrors(object):
-
     def test_basic_error_properties(self):
         json = [{"$ref": "#/x"}]
         result = JsonRef.replace_refs(json)
@@ -235,7 +237,7 @@ class TestApi(object):
 
     def test_loads_kwargs(self):
         json = """{"a": 5.5, "b": {"$ref": "#/a"}}"""
-        loaded = loads(json, parse_float=lambda x:int(float(x)))
+        loaded = loads(json, parse_float=lambda x: int(float(x)))
         assert loaded["a"] == loaded["b"] == 5
 
     def test_load(self, tmpdir):
@@ -262,7 +264,6 @@ class TestApi(object):
 
 
 class TestJsonLoader(object):
-
     base_uri = ""
     stored_uri = "foo://stored"
     stored_schema = {"stored": "schema"}
@@ -278,7 +279,7 @@ class TestJsonLoader(object):
 
     def test_it_retrieves_unstored_refs_via_requests(self):
         ref = "http://bar"
-        data = {"baz" : 12}
+        data = {"baz": 12}
 
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
@@ -288,7 +289,7 @@ class TestJsonLoader(object):
 
     def test_it_retrieves_unstored_refs_via_urlopen(self):
         ref = "http://bar"
-        data = {"baz" : 12}
+        data = {"baz": 12}
 
         with mock.patch("jsonref.requests", None):
             with mock.patch("jsonref.urlopen") as urlopen:
@@ -301,7 +302,7 @@ class TestJsonLoader(object):
 
     def test_cache_results_on(self):
         ref = "http://bar"
-        data = {"baz" : 12}
+        data = {"baz": 12}
 
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
@@ -312,7 +313,7 @@ class TestJsonLoader(object):
 
     def test_cache_results_off(self):
         ref = "http://bar"
-        data = {"baz" : 12}
+        data = {"baz": 12}
 
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
@@ -332,12 +333,14 @@ class TestProxies(object):
     )
     def make_proxify(self, request):
         param = request.param
+
         def proxify(self, val):
             c = deepcopy(val)
             if param == "Proxy":
                 return Proxy(c)
             globals().get(param)
             return globals().get(param)(lambda: c)
+
         request.cls.proxify = proxify
 
     def check_func(self, func, value, other=_unset):
@@ -369,13 +372,13 @@ class TestProxies(object):
 
     def check_integer(self, v):
         for op in (
-            operator.and_, operator.or_, operator.xor,
-            operator.iand, operator.ior, operator.ixor
+                operator.and_, operator.or_, operator.xor,
+                operator.iand, operator.ior, operator.ixor
         ):
             self.check_func(op, v, 0b10101)
         for op in (
-            operator.lshift, operator.rshift,
-            operator.ilshift, operator.irshift
+                operator.lshift, operator.rshift,
+                operator.ilshift, operator.irshift
         ):
             self.check_func(op, v, 3)
         for op in (operator.invert, hex, oct):
@@ -385,21 +388,21 @@ class TestProxies(object):
 
     def check_numeric(self, v):
         for op in (
-            operator.pos, operator.neg, abs, int, long, float, hash, complex
+                operator.pos, operator.neg, abs, int, long, float, hash, complex
         ):
             self.check_func(op, v)
 
         for other in (5, 13.7):  # Check against both an int and a float
-            for op in(
-                # Math
-                operator.mul, operator.pow, operator.add, operator.sub, div,
-                operator.truediv, operator.floordiv, operator.mod, divmod,
-                # In-place
-                operator.imul, operator.ipow, operator.iadd, operator.isub,
-                idiv, operator.itruediv, operator.ifloordiv, operator.imod,
-                # Comparison
-                operator.lt, operator.le, operator.gt, operator.ge,
-                operator.eq, operator.ne, cmp
+            for op in (
+                    # Math
+                    operator.mul, operator.pow, operator.add, operator.sub, div,
+                    operator.truediv, operator.floordiv, operator.mod, divmod,
+                    # In-place
+                    operator.imul, operator.ipow, operator.iadd, operator.isub,
+                    idiv, operator.itruediv, operator.ifloordiv, operator.imod,
+                    # Comparison
+                    operator.lt, operator.le, operator.gt, operator.ge,
+                    operator.eq, operator.ne, cmp
             ):
                 self.check_func(op, v, other)
 
@@ -449,14 +452,14 @@ class TestProxies(object):
             f += 2.25
 
     def test_lists(self):
-        for l in [1,2], [3,42,59], [99,23,55], ["a", "b", 1.4, 17.3, -3, 42]:
+        for l in [1, 2], [3, 42, 59], [99, 23, 55], ["a", "b", 1.4, 17.3, -3, 42]:
             self.check_list(l)
 
     def test_dicts(self):
         for d in ({"a": 3, 4: 2, 1.5: "b"}, {}, {"": ""}):
             for op in (
-                sorted, set, len, lambda x: sorted(iter(x)),
-                operator.methodcaller("get", "a")
+                    sorted, set, len, lambda x: sorted(iter(x)),
+                    operator.methodcaller("get", "a")
             ):
                 self.check_func(op, d)
 
@@ -486,6 +489,7 @@ class TestProxies(object):
         class C(object):
             def __init__(self):
                 self.attribute = 'value'
+
         v = C()
         p = self.proxify(v)
         p.attribute = 'aoeu'
@@ -515,6 +519,7 @@ class TestProxies(object):
         class C(LazyProxy):
             __notproxied__ = ("class_attr",)
             class_attr = "aoeu"
+
         c = C(lambda: 3)
         # Make sure proxy functionality still works
         assert c == 3
@@ -535,19 +540,25 @@ class TestProxies(object):
 
         class C(A):
             __notproxied__ = ("getter", "setter", "__eq__")
+
             def __init__(self, value):
                 self.attr = 5
                 super(C, self).__init__(lambda: value)
+
             def __equal__(self, other):
                 return False
+
             @property
             def getter(self):
                 return self.attr
+
             def setter(self, value):
                 super(C, self).setter(value)
+
             @notproxied
             def decorated(self):
                 return 2.0
+
             @property
             @notproxied
             def decorated_prop(self):
@@ -576,4 +587,3 @@ class TestProxies(object):
             c.attr = 1
         with pytest.raises(AttributeError):
             c.attr
-
