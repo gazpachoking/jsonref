@@ -4,6 +4,7 @@ import operator
 import re
 import sys
 import warnings
+from importlib import import_module
 from os import environ
 
 try:
@@ -39,7 +40,12 @@ except ImportError:
 
 from proxytypes import LazyProxy, Proxy
 
-__version__ = "0.2-dev"
+__version__ = "0.3-dev"
+
+
+def f_from_mod(mod_str):
+    ld = mod_str.rfind('.')
+    return getattr(import_module(mod_str[:ld]), mod_str[ld + 1:])
 
 
 class JsonRefError(Exception):
@@ -165,7 +171,15 @@ class JsonRef(LazyProxy):
         else:
             # Remote ref or env
             try:
-                base_doc = environ[uri[len('env:'):]] if uri.startswith('env:') else self.loader(uri)
+                if uri.startswith('env:'):
+                    if '|' in uri:
+                        comps = [comp.strip() for comp in uri.split('|')]
+                        env = environ[comps.pop(0)[len('env:'):]]
+                        base_doc = reduce(lambda i, f: f_from_mod(f)(i), comps, env)
+                    else:
+                        base_doc = environ[uri[len('env:'):]]
+                else:
+                    base_doc = self.loader(uri)
             except Exception as e:
                 self._error("%s: %s" % (e.__class__.__name__, unicode(e)), cause=e)
 
