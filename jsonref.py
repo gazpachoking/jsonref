@@ -5,7 +5,8 @@ import re
 import sys
 import warnings
 from importlib import import_module
-from os import environ
+from os import environ, path
+from pkg_resources import resource_filename
 
 try:
     from collections import Mapping, MutableMapping, Sequence
@@ -172,12 +173,11 @@ class JsonRef(LazyProxy):
             # Remote ref or env
             try:
                 if uri.startswith('env:'):
-                    if '|' in uri:
-                        comps = [comp.strip() for comp in uri.split('|')]
-                        env = environ[comps.pop(0)[len('env:'):]]
-                        base_doc = reduce(lambda i, f: f_from_mod(f)(i), comps, env)
-                    else:
-                        base_doc = environ[uri[len('env:'):]]
+                    base_doc = self.handle_pipe('env:', uri, lambda s: environ[s]) if '|' in uri \
+                        else environ[uri[len('env:'):]]
+                elif uri.startswith('pkg_file:'):
+                    base_doc = self.handle_pipe('pkg_file:', uri, self.get_pkg_fname) if '|' in uri \
+                        else self.get_pkg_fname(uri[len('pkg_file:'):])
                 else:
                     base_doc = self.loader(uri)
             except Exception as e:
@@ -191,6 +191,18 @@ class JsonRef(LazyProxy):
             # TODO: Circular ref detection
             result = result.__subject__
         return result
+
+    @staticmethod
+    def handle_pipe(typ, uri, on_first):
+        comps = [comp.strip() for comp in uri.split('|')]
+        pfst = on_first(comps.pop(0)[len(typ):])
+        base_doc = reduce(lambda i, f: f_from_mod(f)(i), comps, pfst)
+        return base_doc
+
+    @staticmethod
+    def get_pkg_fname(s):
+        comps = s.split('::')
+        return path.join(resource_filename(comps.pop(0), None), *comps)
 
     def resolve_pointer(self, document, pointer):
         """
