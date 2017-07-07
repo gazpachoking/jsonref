@@ -3,6 +3,8 @@ import json
 import itertools
 
 from copy import deepcopy
+from os import environ
+import json as js
 
 try:
     from unittest import mock
@@ -204,18 +206,37 @@ class TestJsonRef(object):
         loader.assert_called_once_with("http://foo.com/other")
 
 
+class TestJsonRefExtensions(object):
+    def test_unpiped_env(self):
+        environ['FOO'] = 'bar'
+        json = {'$ref': 'env:FOO'}
+        result = JsonRef.replace_refs(json)
+        assert result == environ['FOO']
+
+    def test_piped_env(self):
+        environ['FOO'] = '{"foo": "bar"}'
+        json = {'$ref': 'env:FOO | json.loads'}
+        result = JsonRef.replace_refs(json)
+        assert result == js.loads(environ['FOO'])
+
+    def test_pipe(self):
+        json = {'car': {'can': ['haz', 'awe']}}
+        result = JsonRef.handle_pipe('foo', 'foo:bar | json.dumps |json.loads|json.dumps| json.loads', lambda d: json)
+        assert result == json
+
+
 class TestJsonRefErrors(object):
     def test_basic_error_properties(self):
         json = [{"$ref": "#/x"}]
         result = JsonRef.replace_refs(json)
         with pytest.raises(JsonRefError) as excinfo:
             result[0].__subject__
-        e = excinfo.value
-        assert e.reference == json[0]
-        assert e.uri == "#/x"
-        assert e.base_uri == ""
-        assert e.path == [0]
-        assert type(e.cause) == TypeError
+            e = excinfo.value
+            assert e.reference == json[0]
+            assert e.uri == "#/x"
+            assert e.base_uri == ""
+            assert e.path == [0]
+            assert type(e.cause) == TypeError
 
     def test_nested_refs(self):
         json = {

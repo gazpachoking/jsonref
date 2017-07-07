@@ -49,6 +49,11 @@ def f_from_mod(mod_str):
     return getattr(import_module(mod_str[:ld]), mod_str[ld + 1:])
 
 
+def f_read_to_s(fname):
+    with open(fname) as f:
+        return f.read()
+
+
 class JsonRefError(Exception):
     def __init__(self, message, reference, uri="", base_uri="", path=(), cause=None):
         self.message = message
