@@ -6,9 +6,9 @@ import sys
 import warnings
 
 try:
-    from collections import Mapping, MutableMapping, Sequence
-except ImportError:
     from collections.abc import Mapping, MutableMapping, Sequence
+except ImportError:
+    from collections import Mapping, MutableMapping, Sequence
 
 PY3 = sys.version_info[0] >= 3
 
