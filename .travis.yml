@@ -15,6 +15,10 @@ matrix:
       sudo: true
     - python: "pypy"
     - python: "pypy3"
+  fast_finish: true
+  allow_failures:
+    - python: pypy
+    - python: pypy3
 
 install:
   - python setup.py -q install
@@ -31,9 +35,3 @@ script:
 after_success:
   - pip install coveralls
   - coveralls
-
-matrix:
-  fast_finish: true
-  allow_failures:
-    - python: pypy
-    - python: pypy3
