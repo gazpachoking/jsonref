@@ -53,6 +53,7 @@ setuptools.setup(
     license="MIT",
     long_description=long_description,
     url="https://github.com/gazpachoking/jsonref",
+    tests_require=["pytest"],
     cmdclass={
         'test': PyTest,
     },
