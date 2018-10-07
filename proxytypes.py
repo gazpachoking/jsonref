@@ -12,22 +12,64 @@ PY3 = sys.version_info[0] >= 3
 
 OPERATORS = [
     # Unary
-    "pos", "neg", "abs", "invert",
+    "pos",
+    "neg",
+    "abs",
+    "invert",
     # Comparison
-    "eq", "ne", "lt", "gt", "le", "ge",
+    "eq",
+    "ne",
+    "lt",
+    "gt",
+    "le",
+    "ge",
     # Container
-    "getitem", "setitem", "delitem", "contains",
+    "getitem",
+    "setitem",
+    "delitem",
+    "contains",
     # In-place operators
-    "iadd", "isub", "imul", "ifloordiv", "itruediv", "imod", "ipow", "ilshift",
-    "irshift", "iand", "ior", "ixor"
+    "iadd",
+    "isub",
+    "imul",
+    "ifloordiv",
+    "itruediv",
+    "imod",
+    "ipow",
+    "ilshift",
+    "irshift",
+    "iand",
+    "ior",
+    "ixor",
 ]
 REFLECTED_OPERATORS = [
-    "add", "sub", "mul", "floordiv", "truediv", "mod", "pow", "and", "or",
-    "xor", "lshift", "rshift"
+    "add",
+    "sub",
+    "mul",
+    "floordiv",
+    "truediv",
+    "mod",
+    "pow",
+    "and",
+    "or",
+    "xor",
+    "lshift",
+    "rshift",
 ]
 # These functions all have magic methods named after them
 MAGIC_FUNCS = [
-    divmod, round, repr, str, hash, len, abs, complex, bool, int, float, iter
+    divmod,
+    round,
+    repr,
+    str,
+    hash,
+    len,
+    abs,
+    complex,
+    bool,
+    int,
+    float,
+    iter,
 ]
 
 if PY3:
@@ -83,6 +125,7 @@ class ProxyMetaClass(type):
         during the method call.
 
         """
+
         @wraps(method)
         def wrapper(self, *args, **kwargs):
             notproxied = _oga(self, "__notproxied__")
@@ -91,7 +134,9 @@ class ProxyMetaClass(type):
                 return method(self, *args, **kwargs)
             finally:
                 _osa(self, "__notproxied__", notproxied)
+
         return wrapper
+
 
 # Since python 2 and 3 metaclass syntax aren't compatible, create an instance
 # of our metaclass which our Proxy class can inherit from
@@ -150,12 +195,14 @@ class Proxy(_ProxyBase):
         called with the proxied value inserted at `arg_pos`
 
         """
+
         @wraps(func)
         def proxied(self, *args, **kwargs):
             args = list(args)
             args.insert(arg_pos, self.__subject__)
             result = func(*args, **kwargs)
             return result
+
         setattr(cls, name, proxied)
 
 
@@ -168,9 +215,7 @@ for op in OPERATORS + REFLECTED_OPERATORS:
 
 # Reflected operators
 for op in REFLECTED_OPERATORS:
-    Proxy.add_proxy_meth(
-        "__r%s__" % op, getattr(operator, "__%s__" % op), arg_pos=1
-    )
+    Proxy.add_proxy_meth("__r%s__" % op, getattr(operator, "__%s__" % op), arg_pos=1)
 
 # One offs
 # Only non-operator that needs a reflected version
