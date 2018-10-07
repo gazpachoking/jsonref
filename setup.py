@@ -1,9 +1,9 @@
-from distutils.core import setup, Command
+import setuptools
 
 from jsonref import __version__
 
 
-class PyTest(Command):
+class PyTest(setuptools.Command):
     user_options = []
 
     def initialize_options(self):
@@ -42,7 +42,7 @@ classifiers = [
 ]
 
 
-setup(
+setuptools.setup(
     name="jsonref",
     version=__version__,
     py_modules=["jsonref", "proxytypes"],
