@@ -46,6 +46,13 @@ class TestJsonRef(object):
         json = {"a": [5, 15], "b": {"$ref": "#/a/1"}}
         assert JsonRef.replace_refs(json)["b"] == json["a"][1]
 
+    def test_local_escaped_ref(self):
+        json = {
+            "a/~a": ["resolved"],
+            "b": {"$ref": '#/a~1~0a'}
+        }
+        assert JsonRef.replace_refs(json)["b"] == json["a/~a"]
+
     def test_local_nonexistent_ref(self):
         json = {
             "data": [1, 2],
