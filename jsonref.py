@@ -207,16 +207,22 @@ class JsonRef(LazyProxy):
                 lambda k: replacements[k.group(0)],
                 part,
             )
-            if isinstance(document, Sequence):
-                # Try to turn an array index to an int
+            if isinstance(document, JsonRef):
+                document = JsonRef.replace_refs(document.__reference__[part], _recursive=True,
+                                                base_uri=document.__reference__['$id'],
+                                                loader=self.loader)
+#                                                **document.kwargs)
+            else:
+                if isinstance(document, Sequence):
+                    # Try to turn an array index to an int
+                    try:
+                        part = int(part)
+                    except ValueError:
+                        pass
                 try:
-                    part = int(part)
-                except ValueError:
-                    pass
-            try:
-                document = document[part]
-            except (TypeError, LookupError) as e:
-                self._error("Unresolvable JSON pointer: %r" % pointer, cause=e)
+                    document = document[part]
+                except (TypeError, LookupError) as e:
+                    self._error("Unresolvable JSON pointer: %r" % pointer, cause=e)
         return document
 
     def _error(self, message, cause=None):
