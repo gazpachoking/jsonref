@@ -4,15 +4,11 @@ import operator
 import re
 import sys
 import warnings
-from importlib import import_module
-from os import environ, path
-from pkg_resources import resource_filename
-from functools import reduce
 
 try:
-    from collections import Mapping, MutableMapping, Sequence
-except ImportError:
     from collections.abc import Mapping, MutableMapping, Sequence
+except ImportError:
+    from collections import Mapping, MutableMapping, Sequence
 
 PY3 = sys.version_info[0] >= 3
 
@@ -21,13 +17,13 @@ if PY3:
     from urllib.parse import unquote
     from urllib.request import urlopen
 
-    str = str
-    str = str
+    unicode = str
+    basestring = str
     iteritems = operator.methodcaller("items")
 else:
-    import urllib.parse
-    from urllib.parse import unquote
-    from urllib.request import urlopen
+    import urlparse
+    from urllib import unquote
+    from urllib2 import urlopen
 
     iteritems = operator.methodcaller("iteritems")
 
@@ -42,7 +38,7 @@ except ImportError:
 
 from proxytypes import LazyProxy, Proxy
 
-__version__ = "0.3-dev"
+__version__ = "0.3.dev0"
 
 
 def f_from_mod(mod_str):
@@ -104,13 +100,13 @@ class JsonRef(LazyProxy):
         """
 
         store = kwargs.setdefault("_store", _URIDict())
-        base_uri, frag = urllib.parse.urldefrag(kwargs.get("base_uri", ""))
+        base_uri, frag = urlparse.urldefrag(kwargs.get("base_uri", ""))
         store_uri = None  # If this does not get set, we won't store the result
         if not frag and not _recursive:
             store_uri = base_uri
         try:
-            if kwargs.get("jsonschema") and isinstance(obj["id"], str):
-                kwargs["base_uri"] = urllib.parse.urljoin(
+            if kwargs.get("jsonschema") and isinstance(obj["id"], basestring):
+                kwargs["base_uri"] = urlparse.urljoin(
                     kwargs.get("base_uri", ""), obj["id"]
                 )
                 store_uri = kwargs["base_uri"]
@@ -118,7 +114,7 @@ class JsonRef(LazyProxy):
             pass
 
         try:
-            if not isinstance(obj["$ref"], str):
+            if not isinstance(obj["$ref"], basestring):
                 raise TypeError
         except (TypeError, LookupError):
             pass
@@ -134,7 +130,7 @@ class JsonRef(LazyProxy):
                 (k, cls.replace_refs(v, _path=path + [k], **kwargs))
                 for k, v in iteritems(obj)
             )
-        elif isinstance(obj, Sequence) and not isinstance(obj, str):
+        elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
             obj = type(obj)(
                 cls.replace_refs(v, _path=path + [i], **kwargs)
                 for i, v in enumerate(obj)
@@ -179,10 +175,10 @@ class JsonRef(LazyProxy):
 
     @property
     def full_uri(self):
-        return urllib.parse.urljoin(self.base_uri, self.__reference__["$ref"])
+        return urlparse.urljoin(self.base_uri, self.__reference__["$ref"])
 
     def callback(self):
-        uri, fragment = urllib.parse.urldefrag(self.full_uri)
+        uri, fragment = urlparse.urldefrag(self.full_uri)
 
         # If we already looked this up, return a reference to the same object
         if uri in self.store:
@@ -241,12 +237,9 @@ class JsonRef(LazyProxy):
 
         for part in parts:
             # Restore escaped slashes and carets
-            replacements = {
-                r"^/": r"/",
-                r"^^": r"^",
-            }
+            replacements = {r"^/": r"/", r"^^": r"^"}
             part = re.sub(
-                "|".join(re.escape(key) for key in list(replacements.keys())),
+                "|".join(re.escape(key) for key in replacements.keys()),
                 lambda k: replacements[k.group(0)],
                 part,
             )
@@ -285,7 +278,7 @@ class _URIDict(MutableMapping):
     """
 
     def normalize(self, uri):
-        return urllib.parse.urlsplit(uri).geturl()
+        return urlparse.urlsplit(uri).geturl()
 
     def __init__(self, *args, **kwargs):
         self.store = dict()
@@ -345,7 +338,7 @@ class JsonLoader(object):
             return result
 
     def get_remote_json(self, uri, **kwargs):
-        scheme = urllib.parse.urlsplit(uri).scheme
+        scheme = urlparse.urlsplit(uri).scheme
 
         if scheme in ["http", "https"] and requests:
             # Prefer requests, it has better encoding detection

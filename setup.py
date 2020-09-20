@@ -1,9 +1,9 @@
-from distutils.core import setup, Command
+import setuptools
 
 from jsonref import __version__
 
 
-class PyTest(Command):
+class PyTest(setuptools.Command):
     user_options = []
 
     def initialize_options(self):
@@ -13,14 +13,14 @@ class PyTest(Command):
         pass
 
     def run(self):
-        import sys, subprocess
-
-        errno = subprocess.call(["py.test", "tests.py"])
+        import subprocess
+        errno = subprocess.call(['py.test', 'tests.py'])
         raise SystemExit(errno)
 
 
 with open("README.rst") as readme:
     long_description = readme.read()
+
 
 classifiers = [
     "Development Status :: 1 - Planning",
@@ -35,11 +35,14 @@ classifiers = [
     "Programming Language :: Python :: 3.3",
     "Programming Language :: Python :: 3.4",
     "Programming Language :: Python :: 3.5",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
-setup(
+
+setuptools.setup(
     name="jsonref",
     version=__version__,
     py_modules=["jsonref", "proxytypes"],
@@ -50,7 +53,8 @@ setup(
     license="MIT",
     long_description=long_description,
     url="https://github.com/gazpachoking/jsonref",
+    tests_require=["pytest"],
     cmdclass={
-        "test": PyTest,
+        'test': PyTest,
     },
 )
