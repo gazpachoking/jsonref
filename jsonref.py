@@ -4,6 +4,8 @@ import operator
 import re
 import sys
 import warnings
+from importlib import import_module
+from os import environ
 
 try:
     from collections.abc import Mapping, MutableMapping, Sequence
@@ -16,6 +18,7 @@ if PY3:
     from urllib import parse as urlparse
     from urllib.parse import unquote
     from urllib.request import urlopen
+    from functools import reduce
 
     unicode = str
     basestring = str
