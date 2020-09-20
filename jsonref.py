@@ -7,6 +7,7 @@ import warnings
 from importlib import import_module
 from os import environ, path
 from pkg_resources import resource_filename
+from functools import reduce
 
 try:
     from collections import Mapping, MutableMapping, Sequence
@@ -20,13 +21,13 @@ if PY3:
     from urllib.parse import unquote
     from urllib.request import urlopen
 
-    unicode = str
-    basestring = str
+    str = str
+    str = str
     iteritems = operator.methodcaller("items")
 else:
-    import urlparse
-    from urllib import unquote
-    from urllib2 import urlopen
+    import urllib.parse
+    from urllib.parse import unquote
+    from urllib.request import urlopen
 
     iteritems = operator.methodcaller("iteritems")
 
@@ -45,8 +46,8 @@ __version__ = "0.3-dev"
 
 
 def f_from_mod(mod_str):
-    ld = mod_str.rfind('.')
-    return getattr(import_module(mod_str[:ld]), mod_str[ld + 1:])
+    ld = mod_str.rfind(".")
+    return getattr(import_module(mod_str[:ld]), mod_str[ld + 1 :])
 
 
 def f_read_to_s(fname):
@@ -103,13 +104,13 @@ class JsonRef(LazyProxy):
         """
 
         store = kwargs.setdefault("_store", _URIDict())
-        base_uri, frag = urlparse.urldefrag(kwargs.get("base_uri", ""))
+        base_uri, frag = urllib.parse.urldefrag(kwargs.get("base_uri", ""))
         store_uri = None  # If this does not get set, we won't store the result
         if not frag and not _recursive:
             store_uri = base_uri
         try:
-            if kwargs.get("jsonschema") and isinstance(obj["id"], basestring):
-                kwargs["base_uri"] = urlparse.urljoin(
+            if kwargs.get("jsonschema") and isinstance(obj["id"], str):
+                kwargs["base_uri"] = urllib.parse.urljoin(
                     kwargs.get("base_uri", ""), obj["id"]
                 )
                 store_uri = kwargs["base_uri"]
@@ -117,7 +118,7 @@ class JsonRef(LazyProxy):
             pass
 
         try:
-            if not isinstance(obj["$ref"], basestring):
+            if not isinstance(obj["$ref"], str):
                 raise TypeError
         except (TypeError, LookupError):
             pass
@@ -133,18 +134,27 @@ class JsonRef(LazyProxy):
                 (k, cls.replace_refs(v, _path=path + [k], **kwargs))
                 for k, v in iteritems(obj)
             )
-        elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
+        elif isinstance(obj, Sequence) and not isinstance(obj, str):
             obj = type(obj)(
-                cls.replace_refs(v, _path=path + [i], **kwargs) for i, v in enumerate(obj)
+                cls.replace_refs(v, _path=path + [i], **kwargs)
+                for i, v in enumerate(obj)
             )
         if store_uri is not None:
             store[store_uri] = obj
         return obj
 
-    def __init__(self, refobj, base_uri="", loader=None, jsonschema=False,
-                 load_on_repr=True, _path=(), _store=None):
+    def __init__(
+        self,
+        refobj,
+        base_uri="",
+        loader=None,
+        jsonschema=False,
+        load_on_repr=True,
+        _path=(),
+        _store=None,
+    ):
         super(LazyProxy, self).__init__(callback=self.callback)
-        if not isinstance(refobj.get("$ref"), basestring):
+        if not isinstance(refobj.get("$ref"), str):
             raise ValueError("Not a valid json reference object: %s" % refobj)
         self.__reference__ = refobj
         self.base_uri = base_uri
@@ -159,17 +169,20 @@ class JsonRef(LazyProxy):
     @property
     def _ref_kwargs(self):
         return dict(
-            base_uri=self.base_uri, loader=self.loader,
-            jsonschema=self.jsonschema, load_on_repr=self.load_on_repr,
-            _path=self.path, _store=self.store
+            base_uri=self.base_uri,
+            loader=self.loader,
+            jsonschema=self.jsonschema,
+            load_on_repr=self.load_on_repr,
+            _path=self.path,
+            _store=self.store,
         )
 
     @property
     def full_uri(self):
-        return urlparse.urljoin(self.base_uri, self.__reference__["$ref"])
+        return urllib.parse.urljoin(self.base_uri, self.__reference__["$ref"])
 
     def callback(self):
-        uri, fragment = urlparse.urldefrag(self.full_uri)
+        uri, fragment = urllib.parse.urldefrag(self.full_uri)
 
         # If we already looked this up, return a reference to the same object
         if uri in self.store:
@@ -177,16 +190,22 @@ class JsonRef(LazyProxy):
         else:
             # Remote ref or env
             try:
-                if uri.startswith('env:'):
-                    base_doc = self.handle_pipe('env:', uri, lambda s: environ[s]) if '|' in uri \
-                        else environ[uri[len('env:'):]]
-                elif uri.startswith('pkg_file:'):
-                    base_doc = self.handle_pipe('pkg_file:', uri, self.get_pkg_fname) if '|' in uri \
-                        else self.get_pkg_fname(uri[len('pkg_file:'):])
+                if uri.startswith("env:"):
+                    base_doc = (
+                        self.handle_pipe("env:", uri, lambda s: environ[s])
+                        if "|" in uri
+                        else environ[uri[len("env:") :]]
+                    )
+                elif uri.startswith("pkg_file:"):
+                    base_doc = (
+                        self.handle_pipe("pkg_file:", uri, self.get_pkg_fname)
+                        if "|" in uri
+                        else self.get_pkg_fname(uri[len("pkg_file:") :])
+                    )
                 else:
                     base_doc = self.loader(uri)
             except Exception as e:
-                self._error("%s: %s" % (e.__class__.__name__, unicode(e)), cause=e)
+                self._error("%s: %s" % (e.__class__.__name__, str(e)), cause=e)
 
             kwargs = self._ref_kwargs
             kwargs["base_uri"] = uri
@@ -199,14 +218,14 @@ class JsonRef(LazyProxy):
 
     @staticmethod
     def handle_pipe(typ, uri, on_first):
-        comps = [comp.strip() for comp in uri.split('|')]
-        pfst = on_first(comps.pop(0)[len(typ):])
+        comps = [comp.strip() for comp in uri.split("|")]
+        pfst = on_first(comps.pop(0)[len(typ) :])
         base_doc = reduce(lambda i, f: f_from_mod(f)(i), comps, pfst)
         return base_doc
 
     @staticmethod
     def get_pkg_fname(s):
-        comps = s.split('::')
+        comps = s.split("::")
         return path.join(resource_filename(comps.pop(0), None), *comps)
 
     def resolve_pointer(self, document, pointer):
@@ -227,9 +246,9 @@ class JsonRef(LazyProxy):
                 r"^^": r"^",
             }
             part = re.sub(
-                '|'.join(re.escape(key) for key in replacements.keys()),
+                "|".join(re.escape(key) for key in list(replacements.keys())),
                 lambda k: replacements[k.group(0)],
-                part
+                part,
             )
             if isinstance(document, Sequence):
                 # Try to turn an array index to an int
@@ -250,7 +269,7 @@ class JsonRef(LazyProxy):
             uri=self.full_uri,
             base_uri=self.base_uri,
             path=self.path,
-            cause=cause
+            cause=cause,
         )
 
     def __repr__(self):
@@ -266,7 +285,7 @@ class _URIDict(MutableMapping):
     """
 
     def normalize(self, uri):
-        return urlparse.urlsplit(uri).geturl()
+        return urllib.parse.urlsplit(uri).geturl()
 
     def __init__(self, *args, **kwargs):
         self.store = dict()
@@ -326,16 +345,14 @@ class JsonLoader(object):
             return result
 
     def get_remote_json(self, uri, **kwargs):
-        scheme = urlparse.urlsplit(uri).scheme
+        scheme = urllib.parse.urlsplit(uri).scheme
 
         if scheme in ["http", "https"] and requests:
             # Prefer requests, it has better encoding detection
             try:
                 result = requests.get(uri).json(**kwargs)
             except TypeError:
-                warnings.warn(
-                    "requests >=1.2 required for custom kwargs to json.loads"
-                )
+                warnings.warn("requests >=1.2 required for custom kwargs to json.loads")
                 result = requests.get(uri).json()
         else:
             # Otherwise, pass off to urllib and assume utf-8
@@ -367,7 +384,7 @@ def load(fp, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kw
         base_uri=base_uri,
         loader=loader,
         jsonschema=jsonschema,
-        load_on_repr=load_on_repr
+        load_on_repr=load_on_repr,
     )
 
 
@@ -391,7 +408,7 @@ def loads(s, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kw
         base_uri=base_uri,
         loader=loader,
         jsonschema=jsonschema,
-        load_on_repr=load_on_repr
+        load_on_repr=load_on_repr,
     )
 
 
@@ -416,7 +433,7 @@ def load_uri(uri, base_uri=None, loader=None, jsonschema=False, load_on_repr=Tru
         base_uri=base_uri,
         loader=loader,
         jsonschema=jsonschema,
-        load_on_repr=load_on_repr
+        load_on_repr=load_on_repr,
     )
 
 

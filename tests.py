@@ -13,8 +13,7 @@ except ImportError:
 
 import pytest
 
-from jsonref import (PY3, JsonRef, JsonRefError, loads, load, JsonLoader,
-                     dumps, dump)
+from jsonref import PY3, JsonRef, JsonRefError, loads, load, JsonLoader, dumps, dump
 from proxytypes import Proxy, CallbackProxy, LazyProxy, notproxied
 
 if PY3:
@@ -22,9 +21,10 @@ if PY3:
     div = operator.truediv
     idiv = operator.itruediv
 
-
     def cmp(a, b):
         return (a > b) - (a < b)
+
+
 else:
     div = operator.div
     idiv = operator.idiv
@@ -57,7 +57,7 @@ class TestJsonRef(object):
             "a": {"$ref": "#/x"},
             "b": {"$ref": "#/0"},
             "c": {"$ref": "#/data/3"},
-            "d": {"$ref": "#/data/b"}
+            "d": {"$ref": "#/data/b"},
         }
         result = JsonRef.replace_refs(json)
         for key in "abcd":
@@ -69,7 +69,7 @@ class TestJsonRef(object):
             "a": ["foobar"],
             "b": {"$ref": "#/a"},
             "c": {"$ref": "#/a"},
-            "d": {"$ref": "#/c"}
+            "d": {"$ref": "#/c"},
         }
         result = JsonRef.replace_refs(json)
         assert result["b"].__subject__ is result["a"]
@@ -114,40 +114,39 @@ class TestJsonRef(object):
     def test_base_uri_resolution(self):
         json = {"$ref": "foo"}
         loader = mock.Mock(return_value=17)
-        result = JsonRef.replace_refs(
-            json, base_uri="http://bar.com", loader=loader
-        )
+        result = JsonRef.replace_refs(json, base_uri="http://bar.com", loader=loader)
         assert result == 17
         loader.assert_called_once_with("http://bar.com/foo")
 
     def test_repr_does_not_loop(self):
         json = {"a": ["aoeu", {"$ref": "#/a"}]}
         # By default python repr recursion detection should handle it
-        assert (
-            repr(JsonRef.replace_refs(json)) ==
-            "{'a': ['aoeu', [...]]}"
-        )
+        assert repr(JsonRef.replace_refs(json)) == "{'a': ['aoeu', [...]]}"
         # If we turn of load_on_repr we should get a different representation
         assert (
-            repr(JsonRef.replace_refs(json, load_on_repr=False)) ==
-            "{'a': ['aoeu', JsonRef({'$ref': '#/a'})]}"
+            repr(JsonRef.replace_refs(json, load_on_repr=False))
+            == "{'a': ['aoeu', JsonRef({'$ref': '#/a'})]}"
         )
 
     def test_repr_expands_deep_refs_by_default(self):
         json = {
-            "a": "string", "b": {"$ref": "#/a"}, "c": {"$ref": "#/b"},
-            "d": {"$ref": "#/c"}, "e": {"$ref": "#/d"}, "f": {"$ref": "#/e"}
+            "a": "string",
+            "b": {"$ref": "#/a"},
+            "c": {"$ref": "#/b"},
+            "d": {"$ref": "#/c"},
+            "e": {"$ref": "#/d"},
+            "f": {"$ref": "#/e"},
         }
         assert (
-            repr(sorted(JsonRef.replace_refs(json).items())) ==
-            "[('a', 'string'), ('b', 'string'), ('c', 'string'), "
+            repr(sorted(JsonRef.replace_refs(json).items()))
+            == "[('a', 'string'), ('b', 'string'), ('c', 'string'), "
             "('d', 'string'), ('e', 'string'), ('f', 'string')]"
         )
         # Should not expand when set to False explicitly
         result = JsonRef.replace_refs(json, load_on_repr=False)
         assert (
-            repr(sorted(result.items())) ==
-            "[('a', 'string'), ('b', JsonRef({'$ref': '#/a'})), "
+            repr(sorted(result.items()))
+            == "[('a', 'string'), ('b', JsonRef({'$ref': '#/a'})), "
             "('c', JsonRef({'$ref': '#/b'})), ('d', JsonRef({'$ref': '#/c'})), "
             "('e', JsonRef({'$ref': '#/d'})), ('f', JsonRef({'$ref': '#/e'}))]"
         )
@@ -159,7 +158,7 @@ class TestJsonRef(object):
                 "b": "aoeu",
                 # Reference should now be relative to this inner object, rather
                 # than the whole document
-                "c": {"$ref": "#/b"}
+                "c": {"$ref": "#/b"},
             }
         }
         result = JsonRef.replace_refs(json, jsonschema=True)
@@ -173,15 +172,14 @@ class TestJsonRef(object):
                 "id": "http://bar.com/a/schema",
                 "c": {"$ref": "otherSchema"},
                 "d": {"$ref": "/otherSchema"},
-                "e": {
-                    "id": "/b/schema",
-                    "$ref": "otherSchema"
-                }
-            }
+                "e": {"id": "/b/schema", "$ref": "otherSchema"},
+            },
         }
         counter = itertools.count()
         loader = mock.Mock(side_effect=lambda uri: next(counter))
-        result = JsonRef.replace_refs(json, loader=loader, base_uri=base_uri, jsonschema=True)
+        result = JsonRef.replace_refs(
+            json, loader=loader, base_uri=base_uri, jsonschema=True
+        )
         assert result["a"] == 0
         loader.assert_called_once_with("http://foo.com/otherSchema")
         loader.reset_mock()
@@ -196,10 +194,7 @@ class TestJsonRef(object):
 
     def test_jsonref_mode_non_string_is_not_id(self):
         base_uri = "http://foo.com/json"
-        json = {
-            "id": [1],
-            "$ref": "other"
-        }
+        json = {"id": [1], "$ref": "other"}
         loader = mock.Mock(return_value="aoeu")
         result = JsonRef.replace_refs(json, base_uri=base_uri, loader=loader)
         assert result == "aoeu"
@@ -208,20 +203,24 @@ class TestJsonRef(object):
 
 class TestJsonRefExtensions(object):
     def test_unpiped_env(self):
-        environ['FOO'] = 'bar'
-        json = {'$ref': 'env:FOO'}
+        environ["FOO"] = "bar"
+        json = {"$ref": "env:FOO"}
         result = JsonRef.replace_refs(json)
-        assert result == environ['FOO']
+        assert result == environ["FOO"]
 
     def test_piped_env(self):
-        environ['FOO'] = '{"foo": "bar"}'
-        json = {'$ref': 'env:FOO | json.loads'}
+        environ["FOO"] = '{"foo": "bar"}'
+        json = {"$ref": "env:FOO | json.loads"}
         result = JsonRef.replace_refs(json)
-        assert result == js.loads(environ['FOO'])
+        assert result == js.loads(environ["FOO"])
 
     def test_pipe(self):
-        json = {'car': {'can': ['haz', 'awe']}}
-        result = JsonRef.handle_pipe('foo', 'foo:bar | json.dumps |json.loads|json.dumps| json.loads', lambda d: json)
+        json = {"car": {"can": ["haz", "awe"]}}
+        result = JsonRef.handle_pipe(
+            "foo",
+            "foo:bar | json.dumps |json.loads|json.dumps| json.loads",
+            lambda d: json,
+        )
         assert result == json
 
 
@@ -246,7 +245,7 @@ class TestJsonRefErrors(object):
         }
         result = JsonRef.replace_refs(json)
         with pytest.raises(JsonRefError) as excinfo:
-            print(result["a"])
+            print((result["a"]))
         e = excinfo.value
         assert e.path == ["c"]
 
@@ -314,9 +313,7 @@ class TestJsonLoader(object):
 
         with mock.patch("jsonref.requests", None):
             with mock.patch("jsonref.urlopen") as urlopen:
-                urlopen.return_value.read.return_value = (
-                    json.dumps(data).encode("utf8")
-                )
+                urlopen.return_value.read.return_value = json.dumps(data).encode("utf8")
                 result = self.loader(ref)
                 assert result == data
         urlopen.assert_called_once_with("http://bar")
@@ -349,8 +346,7 @@ _unset = object()
 
 class TestProxies(object):
     @pytest.fixture(
-        scope="class", autouse=True,
-        params=["Proxy", "CallbackProxy", "LazyProxy"]
+        scope="class", autouse=True, params=["Proxy", "CallbackProxy", "LazyProxy"]
     )
     def make_proxify(self, request):
         param = request.param
@@ -393,13 +389,19 @@ class TestProxies(object):
 
     def check_integer(self, v):
         for op in (
-                operator.and_, operator.or_, operator.xor,
-                operator.iand, operator.ior, operator.ixor
+            operator.and_,
+            operator.or_,
+            operator.xor,
+            operator.iand,
+            operator.ior,
+            operator.ixor,
         ):
             self.check_func(op, v, 0b10101)
         for op in (
-                operator.lshift, operator.rshift,
-                operator.ilshift, operator.irshift
+            operator.lshift,
+            operator.rshift,
+            operator.ilshift,
+            operator.irshift,
         ):
             self.check_func(op, v, 3)
         for op in (operator.invert, hex, oct):
@@ -408,22 +410,38 @@ class TestProxies(object):
         self.check_numeric(v)
 
     def check_numeric(self, v):
-        for op in (
-                operator.pos, operator.neg, abs, int, long, float, hash, complex
-        ):
+        for op in (operator.pos, operator.neg, abs, int, int, float, hash, complex):
             self.check_func(op, v)
 
         for other in (5, 13.7):  # Check against both an int and a float
             for op in (
-                    # Math
-                    operator.mul, operator.pow, operator.add, operator.sub, div,
-                    operator.truediv, operator.floordiv, operator.mod, divmod,
-                    # In-place
-                    operator.imul, operator.ipow, operator.iadd, operator.isub,
-                    idiv, operator.itruediv, operator.ifloordiv, operator.imod,
-                    # Comparison
-                    operator.lt, operator.le, operator.gt, operator.ge,
-                    operator.eq, operator.ne, cmp
+                # Math
+                operator.mul,
+                operator.pow,
+                operator.add,
+                operator.sub,
+                div,
+                operator.truediv,
+                operator.floordiv,
+                operator.mod,
+                divmod,
+                # In-place
+                operator.imul,
+                operator.ipow,
+                operator.iadd,
+                operator.isub,
+                idiv,
+                operator.itruediv,
+                operator.ifloordiv,
+                operator.imod,
+                # Comparison
+                operator.lt,
+                operator.le,
+                operator.gt,
+                operator.ge,
+                operator.eq,
+                operator.ne,
+                cmp,
             ):
                 self.check_func(op, v, other)
 
@@ -479,8 +497,11 @@ class TestProxies(object):
     def test_dicts(self):
         for d in ({"a": 3, 4: 2, 1.5: "b"}, {}, {"": ""}):
             for op in (
-                    sorted, set, len, lambda x: sorted(iter(x)),
-                    operator.methodcaller("get", "a")
+                sorted,
+                set,
+                len,
+                lambda x: sorted(iter(x)),
+                operator.methodcaller("get", "a"),
             ):
                 self.check_func(op, d)
 
@@ -509,17 +530,17 @@ class TestProxies(object):
     def test_attributes(self):
         class C(object):
             def __init__(self):
-                self.attribute = 'value'
+                self.attribute = "value"
 
         v = C()
         p = self.proxify(v)
-        p.attribute = 'aoeu'
-        v.attribute = 'aoeu'
+        p.attribute = "aoeu"
+        v.attribute = "aoeu"
         assert p.__subject__.attribute == v.attribute
         del p.attribute
         del v.attribute
-        assert not hasattr(v, 'attribute')
-        assert not hasattr(p, 'attribute')
+        assert not hasattr(v, "attribute")
+        assert not hasattr(p, "attribute")
 
     def test_call(self):
         func = lambda a: a * 2
@@ -528,11 +549,11 @@ class TestProxies(object):
 
     def test_subject_attribute(self):
         # Test getting subject
-        v = ['aoeu']
+        v = ["aoeu"]
         p = LazyProxy(lambda: v)
         assert p.__subject__ is v
         # Test setting subject
-        v2 = 'aoeu'
+        v2 = "aoeu"
         p.__subject__ = v2
         assert p == v2
 
