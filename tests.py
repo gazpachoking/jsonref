@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import operator
 import json
 import itertools
@@ -14,7 +16,7 @@ except ImportError:
 import pytest
 
 from jsonref import PY3, JsonRef, JsonRefError, loads, load, JsonLoader, dumps, dump
-from proxytypes import Proxy, CallbackProxy, LazyProxy, notproxied
+from proxytypes import Proxy, LazyProxy, notproxied
 
 if PY3:
     long = int
@@ -245,9 +247,9 @@ class TestJsonRefErrors(object):
         }
         result = JsonRef.replace_refs(json)
         with pytest.raises(JsonRefError) as excinfo:
-            print((result["a"]))
-        e = excinfo.value
-        assert e.path == ["c"]
+            print(result["a"])
+            e = excinfo.value
+            assert e.path == ["c"]
 
 
 class TestApi(object):

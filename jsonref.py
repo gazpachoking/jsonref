@@ -5,7 +5,8 @@ import re
 import sys
 import warnings
 from importlib import import_module
-from os import environ
+from os import environ, path
+from pkg_resources import resource_filename
 
 try:
     from collections.abc import Mapping, MutableMapping, Sequence
@@ -39,9 +40,9 @@ try:
 except ImportError:
     requests = None
 
-from proxytypes import LazyProxy, Proxy
+from proxytypes import LazyProxy
 
-__version__ = "0.3.dev0"
+__version__ = "0.3.dev1"
 
 
 def f_from_mod(mod_str):
@@ -64,7 +65,7 @@ class JsonRefError(Exception):
         self.cause = self.__cause__ = cause
 
     def __repr__(self):
-        return "<%s: %r>" % (self.__class__.__name__, self.message)
+        return "<{}: {!r}>".format(self.__class__.__name__, self.message)
 
     def __str__(self):
         return str(self.message)
@@ -154,7 +155,7 @@ class JsonRef(LazyProxy):
     ):
         super(LazyProxy, self).__init__(callback=self.callback)
         if not isinstance(refobj.get("$ref"), str):
-            raise ValueError("Not a valid json reference object: %s" % refobj)
+            raise ValueError("Not a valid json reference object: {}".format(refobj))
         self.__reference__ = refobj
         self.base_uri = base_uri
         self.loader = loader or jsonloader
@@ -204,7 +205,7 @@ class JsonRef(LazyProxy):
                 else:
                     base_doc = self.loader(uri)
             except Exception as e:
-                self._error("%s: %s" % (e.__class__.__name__, str(e)), cause=e)
+                self._error("{}: {}".format(e.__class__.__name__, str(e)), cause=e)
 
             kwargs = self._ref_kwargs
             kwargs["base_uri"] = uri
@@ -255,7 +256,7 @@ class JsonRef(LazyProxy):
             try:
                 document = document[part]
             except (TypeError, LookupError) as e:
-                self._error("Unresolvable JSON pointer: %r" % pointer, cause=e)
+                self._error("Unresolvable JSON pointer: {!r}".format(pointer), cause=e)
         return document
 
     def _error(self, message, cause=None):
@@ -271,7 +272,7 @@ class JsonRef(LazyProxy):
     def __repr__(self):
         if hasattr(self, "cache") or self.load_on_repr:
             return repr(self.__subject__)
-        return "JsonRef(%r)" % self.__reference__
+        return "JsonRef({!r})".format(self.__reference__)
 
 
 class _URIDict(MutableMapping):

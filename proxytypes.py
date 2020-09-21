@@ -207,15 +207,17 @@ class Proxy(_ProxyBase):
 
 
 for func in MAGIC_FUNCS:
-    Proxy.add_proxy_meth("__%s__" % func.__name__, func)
+    Proxy.add_proxy_meth("__{}__".format(func.__name__), func)
 
 for op in OPERATORS + REFLECTED_OPERATORS:
-    magic_meth = "__%s__" % op
+    magic_meth = "__{}__".format(op)
     Proxy.add_proxy_meth(magic_meth, getattr(operator, magic_meth))
 
 # Reflected operators
 for op in REFLECTED_OPERATORS:
-    Proxy.add_proxy_meth("__r%s__" % op, getattr(operator, "__%s__" % op), arg_pos=1)
+    Proxy.add_proxy_meth(
+        "__r{}__".format(op), getattr(operator, "__{}__".format(op)), arg_pos=1
+    )
 
 # One offs
 # Only non-operator that needs a reflected version

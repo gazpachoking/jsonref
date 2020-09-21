@@ -14,7 +14,8 @@ class PyTest(setuptools.Command):
 
     def run(self):
         import subprocess
-        errno = subprocess.call(['py.test', 'tests.py'])
+
+        errno = subprocess.call(["py.test", "tests.py"])
         raise SystemExit(errno)
 
 
@@ -55,6 +56,6 @@ setuptools.setup(
     url="https://github.com/gazpachoking/jsonref",
     tests_require=["pytest"],
     cmdclass={
-        'test': PyTest,
+        "test": PyTest,
     },
 )
