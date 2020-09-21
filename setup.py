@@ -19,7 +19,7 @@ class PyTest(setuptools.Command):
         raise SystemExit(errno)
 
 
-with open("README.rst") as readme:
+with open("README.md") as readme:
     long_description = readme.read()
 
 
