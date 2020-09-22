@@ -7,15 +7,14 @@ import warnings
 from importlib import import_module
 from os import environ, path
 from pkg_resources import resource_filename
+from six import string_types
 
 try:
     from collections.abc import Mapping, MutableMapping, Sequence
 except ImportError:
     from collections import Mapping, MutableMapping, Sequence
 
-PY3 = sys.version_info[0] >= 3
-
-if PY3:
+if sys.version[0] == '3':
     from urllib import parse as urlparse
     from urllib.parse import unquote
     from urllib.request import urlopen
@@ -154,8 +153,10 @@ class JsonRef(LazyProxy):
         _store=None,
     ):
         super(LazyProxy, self).__init__(callback=self.callback)
-        if not isinstance(refobj.get("$ref"), str):
-            raise ValueError("Not a valid json reference object: {}".format(refobj))
+        if not isinstance(refobj.get("$ref"), string_types):
+            raise ValueError(
+                "Not a valid json reference object: {!r}".format(refobj.get("$ref"))
+            )
         self.__reference__ = refobj
         self.base_uri = base_uri
         self.loader = loader or jsonloader
