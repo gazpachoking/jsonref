@@ -7,14 +7,13 @@ import warnings
 from importlib import import_module
 from os import environ, path
 from pkg_resources import resource_filename
-from six import string_types
 
 try:
     from collections.abc import Mapping, MutableMapping, Sequence
 except ImportError:
     from collections import Mapping, MutableMapping, Sequence
 
-if sys.version[0] == '3':
+if sys.version[0] == "3":
     from urllib import parse as urlparse
     from urllib.parse import unquote
     from urllib.request import urlopen
@@ -23,12 +22,14 @@ if sys.version[0] == '3':
     unicode = str
     basestring = str
     iteritems = operator.methodcaller("items")
+    string_types = (str,)
 else:
     import urlparse
     from urllib import unquote
     from urllib2 import urlopen
 
     iteritems = operator.methodcaller("iteritems")
+    string_types = (basestring,)
 
 try:
     # If requests >=1.0 is available, we will use it
