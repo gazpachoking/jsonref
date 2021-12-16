@@ -67,14 +67,38 @@ class TestJsonRef(object):
     def test_ignored_sibling_attributes(self):
         json = {
             "a": {"type": "object", "properties": {"foo": {"type": "string"}}},
-           "b": {"extra": "foobar", "$ref": "#/a"},
+            "b": {"extra": "foobar", "$ref": "#/a"},
+            "c": {"extra": { "more": "bar", "$ref": "#/a"} },
         }
         result = JsonRef.replace_refs(json)
-        assert result["b"].__subject__ is {
+        # because we deepcopy, use '==' instead of 'is"
+        assert result["b"] == {
             "extra": "foobar",
             "type": "object",
             "properties": {"foo": {"type": "string"}},
         }
+        assert result["c"] == {
+            "extra": {
+                "more": "bar",
+                "type": "object",
+                "properties": {"foo": {"type": "string"}}
+            }
+        }
+
+    def test_extra_sibling_attributes_list_ref(self):
+        json = {
+            "a": ["target"],
+            "b": {"extra": "foobar", "$ref": "#/a"},
+        }
+        result = JsonRef.replace_refs(json)
+        with pytest.raises(JsonRefError) as excinfo:
+            result["b"].__subject__
+        e = excinfo.value
+        assert e.reference == json["b"]
+        assert e.uri == "#/a"
+        assert e.base_uri == ""
+        assert e.path == ["b"]
+        assert type(e.cause) == TypeError
 
     def test_recursive_data_structures_local(self):
         json = {"a": "foobar", "b": {"$ref": "#"}}
