@@ -93,6 +93,28 @@ class TestJsonRef(object):
             "type": "object",
             "properties": {"foo": {"type": "string"}},
         }
+        assert result["c"] == {
+            "extra": {
+                "more": "bar",
+                "type": "object",
+                "properties": {"foo": {"type": "string"}},
+            }
+        }
+
+    def test_extra_sibling_attributes_list_ref(self):
+        json = {
+            "a": ["target"],
+            "b": {"extra": "foobar", "$ref": "#/a"},
+        }
+        result = replace_refs(json)
+        with pytest.raises(JsonRefError) as excinfo:
+            result["b"].__subject__
+        e = excinfo.value
+        assert e.reference == json["b"]
+        assert e.uri == "#/a"
+        assert e.base_uri == ""
+        assert e.path == ["b"]
+        assert type(e.cause) == TypeError
 
     def test_lazy_load(self):
         json = {
