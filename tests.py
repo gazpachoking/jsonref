@@ -64,6 +64,18 @@ class TestJsonRef(object):
         assert result["c"].__subject__ is result["a"]
         assert result["d"].__subject__ is result["a"]
 
+    def test_ignored_sibling_attributes(self):
+        json = {
+            "a": {"type": "object", "properties": {"foo": {"type": "string"}}},
+           "b": {"extra": "foobar", "$ref": "#/a"},
+        }
+        result = JsonRef.replace_refs(json)
+        assert result["b"].__subject__ is {
+            "extra": "foobar",
+            "type": "object",
+            "properties": {"foo": {"type": "string"}},
+        }
+
     def test_recursive_data_structures_local(self):
         json = {"a": "foobar", "b": {"$ref": "#"}}
         result = JsonRef.replace_refs(json)
