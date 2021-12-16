@@ -82,6 +82,18 @@ class TestJsonRef(object):
         assert result["c"].__subject__ is result["a"]
         assert result["d"].__subject__ is result["a"]
 
+    def test_ignored_sibling_attributes(self):
+        json = {
+            "a": {"type": "object", "properties": {"foo": {"type": "string"}}},
+            "b": {"extra": "foobar", "$ref": "#/a"},
+        }
+        result = replace_refs(json)
+        assert result["b"].__subject__ is {
+            "extra": "foobar",
+            "type": "object",
+            "properties": {"foo": {"type": "string"}},
+        }
+
     def test_lazy_load(self):
         json = {
             "a": {"$ref": "#/fake"},
