@@ -12,7 +12,7 @@ class PyTest(setuptools.Command):
     def finalize_options(self):
         pass
 
-    def run(self):
+    def c.run(self):
         import subprocess
 
         errno = subprocess.call(["py.test", "tests.py"])
