@@ -5,10 +5,7 @@ https://pypi.python.org/pypi/ProxyTypes
 
 from functools import wraps
 import operator
-import sys
 
-
-PY3 = sys.version_info[0] >= 3
 
 OPERATORS = [
     # Unary
@@ -72,14 +69,8 @@ MAGIC_FUNCS = [
     iter,
 ]
 
-if PY3:
-    MAGIC_FUNCS += [bytes]
-    iteritems = operator.methodcaller("items")
-else:
-    OPERATORS += ["getslice", "setslice", "delslice", "idiv"]
-    REFLECTED_OPERATORS += ["div"]
-    MAGIC_FUNCS += [long, unicode, cmp, coerce, oct, hex]
-    iteritems = operator.methodcaller("iteritems")
+MAGIC_FUNCS += [bytes]
+iteritems = operator.methodcaller("items")
 
 
 _oga = object.__getattribute__
