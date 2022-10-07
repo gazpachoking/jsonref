@@ -1,8 +1,7 @@
 # jsonref
 
-
+[![image](https://github.com/gazpachoking/jsonref/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/gazpachoking/jsonref/actions/workflows/test.yml?query=branch%3Amaster)
 [![image](https://readthedocs.org/projects/jsonref/badge/?version=latest)](https://jsonref.readthedocs.io/en/latest/)
-[![image](https://github.com/gazpachoking/jsonref/actions/workflows/Test/badge.svg?branch=master)](https://github.com/gazpachoking/jsonref/actions/workflows/main.yml?query=branch%3Amaster)
 [![image](https://coveralls.io/repos/gazpachoking/jsonref/badge.png?branch=master)](https://coveralls.io/r/gazpachoking/jsonref)
 [![image](https://img.shields.io/pypi/v/jsonref?color=%2334D058&label=pypi%20package)](https://pypi.org/project/jsonref)
 
