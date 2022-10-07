@@ -67,11 +67,8 @@ MAGIC_FUNCS = [
     int,
     float,
     iter,
+    bytes,
 ]
-
-MAGIC_FUNCS += [bytes]
-iteritems = operator.methodcaller("items")
-
 
 _oga = object.__getattribute__
 _osa = object.__setattr__
@@ -85,7 +82,7 @@ class ProxyMetaClass(type):
         for base in bases:
             if hasattr(base, "__notproxied__"):
                 newcls.__notproxied__.update(base.__notproxied__)
-        for key, val in iteritems(dct):
+        for key, val in dct.items():
             setattr(newcls, key, val)
         return newcls
 
