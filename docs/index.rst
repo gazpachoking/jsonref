@@ -110,3 +110,33 @@ except they output the original reference objects when encountering
 .. autofunction:: dump
 
 .. autofunction:: dumps
+
+
+When things go wrong
+====================
+If there is a failure when resolving a JSON reference, a :class:`JsonRefError` will be raised with the details.
+
+.. autoclass:: JsonRefError
+
+    .. attribute:: message
+
+    .. attribute:: reference
+
+        Contains the original JSON reference object.
+
+    .. attribute:: uri
+
+        The uri that was trying to be resolved in the JSON reference object.
+
+    .. attribute:: base_uri
+
+        If the uri was relative, or a fragment, this is the base uri it was being resolved against.
+
+    .. attribute:: path
+
+        This is the path within the JSON document the reference was found. This can be useful when the reference was
+        deeply nested within the document.
+
+    .. attribute:: cause
+
+        The exception that caused the resolution to fail.
