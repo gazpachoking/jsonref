@@ -3,9 +3,8 @@ Based on the implementation here by Phillip J. Eby:
 https://pypi.python.org/pypi/ProxyTypes
 """
 
-from functools import wraps
 import operator
-
+from functools import wraps
 
 OPERATORS = [
     # Unary
@@ -239,8 +238,10 @@ class LazyProxy(CallbackProxy):
         try:
             return self.cache
         except AttributeError:
-            self.cache = super(LazyProxy, self).__subject__
-            return self.cache
+            pass
+
+        self.cache = super(LazyProxy, self).__subject__
+        return self.cache
 
     @__subject__.setter
     def __subject__(self, value):

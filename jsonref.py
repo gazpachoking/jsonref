@@ -198,6 +198,7 @@ class JsonRef(LazyProxy):
         return document
 
     def _error(self, message, cause=None):
+        message = "Error while resolving `{}`: {}".format(self.full_uri, message)
         raise JsonRefError(
             message,
             self.__reference__,
@@ -205,7 +206,7 @@ class JsonRef(LazyProxy):
             base_uri=self.base_uri,
             path=self.path,
             cause=cause,
-        )
+        ) from cause
 
     def __repr__(self):
         if hasattr(self, "cache") or self.load_on_repr:
