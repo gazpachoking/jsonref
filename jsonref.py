@@ -284,12 +284,11 @@ class JsonLoader(object):
 
         if scheme in ["http", "https"] and requests:
             # Prefer requests, it has better encoding detection
+            req = requests.get(uri)
+            # If the http server doesn't respond normally then raise exception
+            # e.g. 404, 500 error
+            req.raise_for_status()
             try:
-                req = requests.get(uri)
-                # If the http server doesn't respond normally then raise exception
-                # e.g. 404, 500 error
-                req.raise_for_status()
-
                 result = req.json(**kwargs)
             except TypeError:
                 warnings.warn("requests >=1.2 required for custom kwargs to json.loads")
