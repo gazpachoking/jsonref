@@ -284,15 +284,15 @@ class JsonLoader(object):
 
         if scheme in ["http", "https"] and requests:
             # Prefer requests, it has better encoding detection
-            req = requests.get(uri)
+            resp = requests.get(uri)
             # If the http server doesn't respond normally then raise exception
             # e.g. 404, 500 error
-            req.raise_for_status()
+            resp.raise_for_status()
             try:
-                result = req.json(**kwargs)
+                result = resp.json(**kwargs)
             except TypeError:
                 warnings.warn("requests >=1.2 required for custom kwargs to json.loads")
-                result = req.json()
+                result = resp.json()
         else:
             # Otherwise, pass off to urllib and assume utf-8
             result = json.loads(urlopen(uri).read().decode("utf-8"), **kwargs)
