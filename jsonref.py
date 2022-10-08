@@ -1,8 +1,5 @@
 import functools
 import json
-import operator
-import re
-import sys
 import warnings
 
 try:
@@ -10,22 +7,9 @@ try:
 except ImportError:
     from collections import Mapping, MutableMapping, Sequence
 
-PY3 = sys.version_info[0] >= 3
-
-if PY3:
-    from urllib import parse as urlparse
-    from urllib.parse import unquote
-    from urllib.request import urlopen
-
-    unicode = str
-    basestring = str
-    iteritems = operator.methodcaller("items")
-else:
-    import urlparse
-    from urllib import unquote
-    from urllib2 import urlopen
-
-    iteritems = operator.methodcaller("iteritems")
+from urllib import parse as urlparse
+from urllib.parse import unquote
+from urllib.request import urlopen
 
 try:
     # If requests >=1.0 is available, we will use it
@@ -38,7 +22,7 @@ except ImportError:
 
 from proxytypes import LazyProxy, Proxy
 
-__version__ = "0.3.dev0"
+__version__ = "0.4.dev0"
 
 
 class JsonRefError(Exception):
@@ -95,7 +79,7 @@ class JsonRef(LazyProxy):
         if not frag and not _recursive:
             store_uri = base_uri
         try:
-            if kwargs.get("jsonschema") and isinstance(obj["id"], basestring):
+            if kwargs.get("jsonschema") and isinstance(obj["id"], str):
                 kwargs["base_uri"] = urlparse.urljoin(
                     kwargs.get("base_uri", ""), obj["id"]
                 )
@@ -104,7 +88,7 @@ class JsonRef(LazyProxy):
             pass
 
         try:
-            if not isinstance(obj["$ref"], basestring):
+            if not isinstance(obj["$ref"], str):
                 raise TypeError
         except (TypeError, LookupError):
             pass
@@ -118,9 +102,9 @@ class JsonRef(LazyProxy):
         if isinstance(obj, Mapping):
             obj = type(obj)(
                 (k, cls.replace_refs(v, _path=path + [k], **kwargs))
-                for k, v in iteritems(obj)
+                for k, v in obj.items()
             )
-        elif isinstance(obj, Sequence) and not isinstance(obj, basestring):
+        elif isinstance(obj, Sequence) and not isinstance(obj, str):
             obj = type(obj)(
                 cls.replace_refs(v, _path=path + [i], **kwargs)
                 for i, v in enumerate(obj)
@@ -139,7 +123,7 @@ class JsonRef(LazyProxy):
         _path=(),
         _store=None,
     ):
-        if not isinstance(refobj.get("$ref"), basestring):
+        if not isinstance(refobj.get("$ref"), str):
             raise ValueError("Not a valid json reference object: %s" % refobj)
         self.__reference__ = refobj
         self.base_uri = base_uri
@@ -177,7 +161,7 @@ class JsonRef(LazyProxy):
             try:
                 base_doc = self.loader(uri)
             except Exception as e:
-                self._error("%s: %s" % (e.__class__.__name__, unicode(e)), cause=e)
+                self._error("%s: %s" % (e.__class__.__name__, str(e)), cause=e)
 
             kwargs = self._ref_kwargs
             kwargs["base_uri"] = uri
@@ -196,17 +180,11 @@ class JsonRef(LazyProxy):
         :argument str pointer: a json pointer URI fragment to resolve within it
 
         """
-        # Do only split at single forward slashes which are not prefixed by a caret
-        parts = re.split(r"(?<!\^)/", unquote(pointer.lstrip("/"))) if pointer else []
+        parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
 
         for part in parts:
-            # Restore escaped slashes and carets
-            replacements = {r"^/": r"/", r"^^": r"^"}
-            part = re.sub(
-                "|".join(re.escape(key) for key in replacements.keys()),
-                lambda k: replacements[k.group(0)],
-                part,
-            )
+            part = part.replace("~1", "/").replace("~0", "~")
+
             if isinstance(document, Sequence):
                 # Try to turn an array index to an int
                 try:

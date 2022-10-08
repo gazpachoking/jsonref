@@ -5,10 +5,7 @@ https://pypi.python.org/pypi/ProxyTypes
 
 from functools import wraps
 import operator
-import sys
 
-
-PY3 = sys.version_info[0] >= 3
 
 OPERATORS = [
     # Unary
@@ -70,17 +67,8 @@ MAGIC_FUNCS = [
     int,
     float,
     iter,
+    bytes,
 ]
-
-if PY3:
-    MAGIC_FUNCS += [bytes]
-    iteritems = operator.methodcaller("items")
-else:
-    OPERATORS += ["getslice", "setslice", "delslice", "idiv"]
-    REFLECTED_OPERATORS += ["div"]
-    MAGIC_FUNCS += [long, unicode, cmp, coerce, oct, hex]
-    iteritems = operator.methodcaller("iteritems")
-
 
 _oga = object.__getattribute__
 _osa = object.__setattr__
@@ -94,7 +82,7 @@ class ProxyMetaClass(type):
         for base in bases:
             if hasattr(base, "__notproxied__"):
                 newcls.__notproxied__.update(base.__notproxied__)
-        for key, val in iteritems(dct):
+        for key, val in dct.items():
             setattr(newcls, key, val)
         return newcls
 
