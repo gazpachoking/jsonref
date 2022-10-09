@@ -167,8 +167,9 @@ class JsonRef(LazyProxy):
             kwargs["base_uri"] = uri
             base_doc = JsonRef.replace_refs(base_doc, **kwargs)
             result = self.resolve_pointer(base_doc, fragment)
+        if result is self:
+            raise self._error("Reference refers directly to itself.")
         if hasattr(result, "__subject__"):
-            # TODO: Circular ref detection
             result = result.__subject__
         return result
 
