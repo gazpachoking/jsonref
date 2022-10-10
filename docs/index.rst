@@ -8,12 +8,12 @@ jsonref
 
 ``jsonref`` is a library for automatic dereferencing of
 `JSON Reference <https://tools.ietf.org/id/draft-pbryan-zyp-json-ref-03.html>`_
-objects for Python (supporting Python 2.6+ and Python 3.3+).
+objects for Python (supporting Python 3.3+).
 
 .. testcode::
 
     from pprint import pprint
-    from jsonref import JsonRef
+    from jsonref import replace_refs
 
     # Sample JSON data, like from json.load
     document = {
@@ -21,13 +21,24 @@ objects for Python (supporting Python 2.6+ and Python 3.3+).
         "reference": {"$ref": "#/data/1"}
     }
 
-    # The JsonRef.replace_refs class method will return a copy of the document
+    # The :func:`replace_refs` function will return a copy of the document
     # with refs replaced by :class:`JsonRef` objects
-    pprint(JsonRef.replace_refs(document))
+    pprint(replace_refs(document))
 
 .. testoutput::
 
     {'data': ['a', 'b', 'c'], 'reference': 'b'}
+
+
+The :func:`replace_refs` function
+=================================
+
+The primary interface to use jsonref is with the function :func:`replace_refs`.
+It will return a copy of an object you pass it, with all JSON references contained
+replaced by :class:`JsonRef` objects. There are several other options you can pass,
+seen below.
+
+.. autofunction:: replace_refs
 
 
 :class:`JsonRef` Objects
@@ -39,14 +50,7 @@ pointing to, but only look up that data the first time they are accessed. Once
 JSON reference objects have been substituted in your data structure, you can
 use the data as if it does not contain references at all.
 
-The primary interface to use :class:`JsonRef` objects is with the class method
-:meth:`JsonRef.replace_refs`. It will return a copy of an object you pass it, with
-all JSON references contained replaced by :class:`JsonRef` objects. There are
-several other options you can pass, seen below.
-
 .. autoclass:: JsonRef(refobj, base_uri=None, loader=None, jsonschema=False, load_on_repr=True)
-
-    .. automethod:: replace_refs(obj, base_uri=None, loader=None, jsonschema=False, load_on_repr=True)
 
     :class:`JsonRef` instances proxy almost all operators and attributes to the
     referent data, which will be loaded when first accessed. The following

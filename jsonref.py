@@ -1,12 +1,7 @@
 import functools
 import json
 import warnings
-
-try:
-    from collections.abc import Mapping, MutableMapping, Sequence
-except ImportError:
-    from collections import Mapping, MutableMapping, Sequence
-
+from collections.abc import Mapping, MutableMapping, Sequence
 from urllib import parse as urlparse
 from urllib.parse import unquote
 from urllib.request import urlopen
@@ -20,7 +15,7 @@ try:
 except ImportError:
     requests = None
 
-from proxytypes import LazyProxy, Proxy
+from proxytypes import LazyProxy
 
 __version__ = "0.4.dev0"
 
@@ -31,7 +26,7 @@ class JsonRefError(Exception):
         self.reference = reference
         self.uri = uri
         self.base_uri = base_uri
-        self.path = list(path)
+        self.path = path
         self.cause = self.__cause__ = cause
 
     def __repr__(self):
@@ -51,8 +46,13 @@ class JsonRef(LazyProxy):
     __notproxied__ = ("__reference__",)
 
     @classmethod
-    def replace_refs(cls, obj, _recursive=False, **kwargs):
+    def replace_refs(
+        cls, obj, base_uri="", loader=None, jsonschema=False, load_on_repr=True
+    ):
         """
+        .. deprecated:: 0.4
+            Use :func:`replace_refs` instead.
+
         Returns a deep copy of `obj` with all contained JSON reference objects
         replaced with :class:`JsonRef` instances.
 
@@ -72,46 +72,13 @@ class JsonRef(LazyProxy):
             if it hasn't already. (defaults to ``True``)
 
         """
-
-        store = kwargs.setdefault("_store", _URIDict())
-        base_uri, frag = urlparse.urldefrag(kwargs.get("base_uri", ""))
-        store_uri = None  # If this does not get set, we won't store the result
-        if not frag and not _recursive:
-            store_uri = base_uri
-        try:
-            if kwargs.get("jsonschema") and isinstance(obj["id"], str):
-                kwargs["base_uri"] = urlparse.urljoin(
-                    kwargs.get("base_uri", ""), obj["id"]
-                )
-                store_uri = kwargs["base_uri"]
-        except (TypeError, LookupError):
-            pass
-
-        try:
-            if not isinstance(obj["$ref"], str):
-                raise TypeError
-        except (TypeError, LookupError):
-            pass
-        else:
-            return cls(obj, **kwargs)
-
-        # If our obj was not a json reference object, iterate through it,
-        # replacing children with JsonRefs
-        kwargs["_recursive"] = True
-        path = list(kwargs.pop("_path", ()))
-        if isinstance(obj, Mapping):
-            obj = type(obj)(
-                (k, cls.replace_refs(v, _path=path + [k], **kwargs))
-                for k, v in obj.items()
-            )
-        elif isinstance(obj, Sequence) and not isinstance(obj, str):
-            obj = type(obj)(
-                cls.replace_refs(v, _path=path + [i], **kwargs)
-                for i, v in enumerate(obj)
-            )
-        if store_uri is not None:
-            store[store_uri] = obj
-        return obj
+        return replace_refs(
+            obj,
+            base_uri=base_uri,
+            loader=loader,
+            jsonschema=jsonschema,
+            load_on_repr=load_on_repr,
+        )
 
     def __init__(
         self,
@@ -130,7 +97,7 @@ class JsonRef(LazyProxy):
         self.loader = loader or jsonloader
         self.jsonschema = jsonschema
         self.load_on_repr = load_on_repr
-        self.path = list(_path)
+        self.path = _path
         self.store = _store  # Use the same object to be shared with children
         if self.store is None:
             self.store = _URIDict()
@@ -142,8 +109,8 @@ class JsonRef(LazyProxy):
             loader=self.loader,
             jsonschema=self.jsonschema,
             load_on_repr=self.load_on_repr,
-            _path=self.path,
-            _store=self.store,
+            path=self.path,
+            store=self.store,
         )
 
     @property
@@ -161,11 +128,14 @@ class JsonRef(LazyProxy):
             try:
                 base_doc = self.loader(uri)
             except Exception as e:
-                self._error("%s: %s" % (e.__class__.__name__, str(e)), cause=e)
+                raise self._error(
+                    "%s: %s" % (e.__class__.__name__, str(e)), cause=e
+                ) from e
 
             kwargs = self._ref_kwargs
             kwargs["base_uri"] = uri
-            base_doc = JsonRef.replace_refs(base_doc, **kwargs)
+            kwargs["recursing"] = False
+            base_doc = _replace_refs(base_doc, **kwargs)
             result = self.resolve_pointer(base_doc, fragment)
         if result is self:
             raise self._error("Reference refers directly to itself.")
@@ -195,19 +165,21 @@ class JsonRef(LazyProxy):
             try:
                 document = document[part]
             except (TypeError, LookupError) as e:
-                self._error("Unresolvable JSON pointer: %r" % pointer, cause=e)
+                raise self._error(
+                    "Unresolvable JSON pointer: %r" % pointer, cause=e
+                ) from e
         return document
 
     def _error(self, message, cause=None):
         message = "Error while resolving `{}`: {}".format(self.full_uri, message)
-        raise JsonRefError(
+        return JsonRefError(
             message,
             self.__reference__,
             uri=self.full_uri,
             base_uri=self.base_uri,
             path=self.path,
             cause=cause,
-        ) from cause
+        )
 
     def __repr__(self):
         if hasattr(self, "cache") or self.load_on_repr:
@@ -304,6 +276,141 @@ class JsonLoader(object):
 
 jsonloader = JsonLoader()
 
+_no_result = object()
+
+
+def walk_refs(obj, func, replace=False):
+    if type(obj) is JsonRef:
+        return func(obj)
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            r = walk_refs(v, func, replace=replace)
+            if r is not _no_result and replace:
+                obj[k] = r
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            r = walk_refs(v, func, replace=replace)
+            if r is not _no_result and replace:
+                obj[i] = r
+    return _no_result
+
+
+def replace_refs(
+    obj,
+    proxies=True,
+    lazy_load=True,
+    base_uri="",
+    loader=jsonloader,
+    jsonschema=False,
+    load_on_repr=True,
+):
+    """
+    Returns a deep copy of `obj` with all contained JSON reference objects
+    replaced with :class:`JsonRef` instances.
+
+    :param obj: If this is a JSON reference object, a :class:`JsonRef`
+        instance will be created. If `obj` is not a JSON reference object,
+        a deep copy of it will be created with all contained JSON
+        reference objects replaced by :class:`JsonRef` instances
+    :param proxies: If `True`, references will be replaced with transparent
+        proxy objects. Otherwise, they will be replaced directly with the
+        referred data. (defaults to ``True``)
+    :param lazy_load: When proxy objects are used, and this is `True`, the
+        references will not be resolved until that section of the JSON
+        document is accessed. (defaults to ``True``)
+    :param base_uri: URI to resolve relative references against
+    :param loader: Callable that takes a URI and returns the parsed JSON
+        (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
+    :param jsonschema: Flag to turn on `JSON Schema mode
+        <http://json-schema.org/latest/json-schema-core.html#anchor25>`_.
+        'id' keyword changes the `base_uri` for references contained within
+        the object
+    :param load_on_repr: If set to ``False``, :func:`repr` call on a
+        :class:`JsonRef` object will not cause the reference to be loaded
+        if it hasn't already. (defaults to ``True``)
+
+    """
+    result = _replace_refs(
+        obj,
+        base_uri=base_uri,
+        loader=loader,
+        jsonschema=jsonschema,
+        load_on_repr=load_on_repr,
+        store=_URIDict(),
+        path=(),
+        recursing=False,
+    )
+    if not proxies:
+        walk_refs(result, lambda r: r.__subject__, replace=True)
+    elif not lazy_load:
+        walk_refs(result, lambda r: r.__subject__)
+    return result
+
+
+def _replace_refs(
+    obj, *, base_uri, loader, jsonschema, load_on_repr, store, path, recursing
+):
+    base_uri, frag = urlparse.urldefrag(base_uri)
+    store_uri = None  # If this does not get set, we won't store the result
+    if not frag and not recursing:
+        store_uri = base_uri
+    try:
+        if jsonschema and isinstance(obj["id"], str):
+            base_uri = urlparse.urljoin(base_uri, obj["id"])
+            store_uri = base_uri
+    except (TypeError, LookupError):
+        pass
+
+    try:
+        if not isinstance(obj["$ref"], str):
+            raise TypeError
+    except (TypeError, LookupError):
+        pass
+    else:
+        return JsonRef(
+            obj,
+            base_uri=base_uri,
+            loader=loader,
+            jsonschema=jsonschema,
+            load_on_repr=load_on_repr,
+            _path=path,
+            _store=store,
+        )
+
+    # If our obj was not a json reference object, iterate through it,
+    # replacing children with JsonRefs
+    if isinstance(obj, Mapping):
+        obj = {
+            k: _replace_refs(
+                v,
+                base_uri=base_uri,
+                loader=loader,
+                jsonschema=jsonschema,
+                load_on_repr=load_on_repr,
+                store=store,
+                path=path + (k,),
+                recursing=True,
+            )
+            for k, v in obj.items()
+        }
+    elif isinstance(obj, Sequence) and not isinstance(obj, str):
+        obj = [
+            _replace_refs(
+                v,
+                base_uri=base_uri,
+                loader=loader,
+                jsonschema=jsonschema,
+                load_on_repr=load_on_repr,
+                store=store,
+                path=path + (i,),
+                recursing=True,
+            )
+            for i, v in enumerate(obj)
+        ]
+    if store_uri is not None:
+        store[store_uri] = obj
+    return obj
+
 
 def load(fp, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kwargs):
     """
@@ -320,7 +427,7 @@ def load(fp, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kw
     if loader is None:
         loader = functools.partial(jsonloader, **kwargs)
 
-    return JsonRef.replace_refs(
+    return replace_refs(
         json.load(fp, **kwargs),
         base_uri=base_uri,
         loader=loader,
@@ -344,7 +451,7 @@ def loads(s, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kw
     if loader is None:
         loader = functools.partial(jsonloader, **kwargs)
 
-    return JsonRef.replace_refs(
+    return replace_refs(
         json.loads(s, **kwargs),
         base_uri=base_uri,
         loader=loader,
@@ -369,7 +476,7 @@ def load_uri(uri, base_uri=None, loader=None, jsonschema=False, load_on_repr=Tru
     if base_uri is None:
         base_uri = uri
 
-    return JsonRef.replace_refs(
+    return replace_refs(
         loader(uri),
         base_uri=base_uri,
         loader=loader,
@@ -390,7 +497,7 @@ def dump(obj, fp, **kwargs):
 
     """
     # Strangely, json.dumps does not use the custom serialization from our
-    # encoder on python 2.7+. Instead just write json.dumps output to a file.
+    # encoder on python 2.7+. Instead, just write json.dumps output to a file.
     fp.write(dumps(obj, **kwargs))
 
 
