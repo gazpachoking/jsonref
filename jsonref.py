@@ -269,7 +269,8 @@ class JsonLoader(object):
                 result = resp.json()
         else:
             # Otherwise, pass off to urllib and assume utf-8
-            result = json.loads(urlopen(uri).read().decode("utf-8"), **kwargs)
+            with urlopen(uri) as content:
+                result = json.loads(content.read().decode("utf-8"), **kwargs)
 
         return result
 

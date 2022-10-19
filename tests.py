@@ -331,7 +331,9 @@ class TestJsonLoader(object):
 
         with mock.patch("jsonref.requests", None):
             with mock.patch("jsonref.urlopen") as urlopen:
-                urlopen.return_value.read.return_value = json.dumps(data).encode("utf8")
+                urlopen.return_value.__enter__.return_value.read.return_value = (
+                    json.dumps(data).encode("utf8")
+                )
                 result = self.loader(ref)
                 assert result == data
         urlopen.assert_called_once_with("http://bar")
