@@ -69,6 +69,7 @@ class TestJsonRef(object):
             "a": {"type": "object", "properties": {"foo": {"type": "string"}}},
             "b": {"extra": "foobar", "$ref": "#/a"},
             "c": {"extra": { "more": "bar", "$ref": "#/a"} },
+            "d": {"deep":  { "$ref": "#/a", "more": { "$ref": "#/b" } } },
         }
         result = JsonRef.replace_refs(json)
         # because we deepcopy, use '==' instead of 'is"
@@ -80,6 +81,17 @@ class TestJsonRef(object):
         assert result["c"] == {
             "extra": {
                 "more": "bar",
+                "type": "object",
+                "properties": {"foo": {"type": "string"}}
+            }
+        }
+        assert result["d"] == {
+            "deep": {
+                "more": {
+                    "extra": "foobar",
+                    "type": "object",
+                    "properties": {"foo": {"type": "string"}},
+                },
                 "type": "object",
                 "properties": {"foo": {"type": "string"}}
             }
