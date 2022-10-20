@@ -57,9 +57,10 @@ like this::
     from pathlib import Path
     import jsonref
 
-    file_a_path = Path("file-a.json")
+    file_a_path = Path("file-a.json").absolute()
 
-    print(jsonref.load(file_a_path.open(), base_uri=file_a_path.absolute().as_uri()))
+    with file_a_path.open() as file_a:
+        result = jsonref.load(file_a, base_uri=file_a_path.as_uri())
 
 
 :class:`JsonRef` Objects
