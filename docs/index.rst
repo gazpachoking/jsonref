@@ -40,6 +40,27 @@ seen below.
 
 .. autofunction:: replace_refs
 
+A note on ``base_uri``
+--------------------
+
+A common question is how to reference other documents from the local filesystem. This is
+easy if you provide the correct ``base_uri`` to the :func:`replace_refs` function (or
+the other utility functions.) For example, if you have several files in a folder like
+this::
+
+    file-a.json
+    file-b.json
+
+If ``file-a.json`` has a reference like ``{"$ref": "file-b.json"}`` you could load them
+like this::
+
+    from pathlib import Path
+    import jsonref
+
+    file_a_path = Path("file-a.json")
+
+    print(jsonref.load(file_a_path.open(), base_uri=file_a_path.absolute().as_uri()))
+
 
 :class:`JsonRef` Objects
 ========================
@@ -80,6 +101,29 @@ instance of it will be used for all refs unless a custom one is specified.
 
 .. autoclass:: JsonLoader
     :members: __call__
+
+Custom Loaders
+----------
+
+If you want to support custom references, you can define your own loader. For example
+here is a complete script to load `env:XXX` URIs from environment variables::
+
+    import os
+
+    import jsonref
+
+
+    def loader(uri):
+        if uri.startswith("env:"):
+            return os.environ[uri[4:]]
+        # Fall back to the default loader:
+        return jsonref.jsonloader(uri)
+
+    json_w_refs = {
+        "a": {"$ref": "env:MYENVVAR"}
+    }
+
+    result = jsonref.replace_refs(json, loader=loader)
 
 
 :mod:`json` module drop in replacement functions
