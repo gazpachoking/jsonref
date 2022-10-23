@@ -7,11 +7,11 @@ from unittest import mock
 import pytest
 
 from jsonref import (
-    JsonLoader,
     JsonRef,
     JsonRefError,
     dump,
     dumps,
+    jsonloader,
     load,
     loads,
     replace_refs,
@@ -126,8 +126,10 @@ class TestJsonRef(object):
     def test_recursive_data_structures_remote(self):
         json1 = {"a": {"$ref": "/json2"}}
         json2 = {"b": {"$ref": "/json1"}}
-        loader = mock.Mock(return_value=json2)
-        result = replace_refs(json1, base_uri="/json1", loader=loader)
+        loader = lambda uri: {"/json1": json1, "/json2": json2}[uri]
+        result = replace_refs(
+            json1, base_uri="/json1", loader=loader, load_on_repr=False
+        )
         assert result["a"]["b"].__subject__ is result
         assert result["a"].__subject__ is result["a"]["b"]["a"].__subject__
 
@@ -240,6 +242,15 @@ class TestJsonRef(object):
         assert result == "aoeu"
         loader.assert_called_once_with("http://foo.com/other")
 
+    def test_cache_loader_results(self):
+        loader = mock.Mock()
+        loader.return_value = 1234
+        json = {"a": {"$ref": "mock://aoeu"}, "b": {"$ref": "mock://aoeu"}}
+
+        result = replace_refs(json, loader=loader)
+        assert result == {"a": 1234, "b": 1234}
+        loader.assert_called_once_with("mock://aoeu")
+
 
 class TestJsonRefErrors(object):
     def test_basic_error_properties(self):
@@ -301,31 +312,17 @@ class TestApi(object):
 
 
 class TestJsonLoader(object):
-
-    base_uri = ""
-    stored_uri = "foo://stored"
-    stored_schema = {"stored": "schema"}
-
-    @pytest.fixture(scope="function", autouse=True)
-    def set_loader(self, request):
-        request.cls.store = {self.stored_uri: self.stored_schema}
-        request.cls.loader = JsonLoader(store=request.cls.store)
-
-    def test_it_retrieves_stored_refs(self):
-        result = self.loader(self.stored_uri)
-        assert result is self.stored_schema
-
-    def test_it_retrieves_unstored_refs_via_requests(self):
+    def test_it_retrieves_refs_via_requests(self):
         ref = "http://bar"
         data = {"baz": 12}
 
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
-            result = self.loader(ref)
+            result = jsonloader(ref)
             assert result == data
         requests.get.assert_called_once_with("http://bar")
 
-    def test_it_retrieves_unstored_refs_via_urlopen(self):
+    def test_it_retrieves_refs_via_urlopen(self):
         ref = "http://bar"
         data = {"baz": 12}
 
@@ -334,31 +331,9 @@ class TestJsonLoader(object):
                 urlopen.return_value.__enter__.return_value.read.return_value = (
                     json.dumps(data).encode("utf8")
                 )
-                result = self.loader(ref)
+                result = jsonloader(ref)
                 assert result == data
         urlopen.assert_called_once_with("http://bar")
-
-    def test_cache_results_on(self):
-        ref = "http://bar"
-        data = {"baz": 12}
-
-        with mock.patch("jsonref.requests") as requests:
-            requests.get.return_value.json.return_value = data
-            dereferencer = JsonLoader(cache_results=True)
-            dereferencer(ref)
-            dereferencer(ref)
-        requests.get.assert_called_once_with(ref)
-
-    def test_cache_results_off(self):
-        ref = "http://bar"
-        data = {"baz": 12}
-
-        with mock.patch("jsonref.requests") as requests:
-            requests.get.return_value.json.return_value = data
-            dereferencer = JsonLoader(cache_results=False)
-            dereferencer(ref)
-            dereferencer(ref)
-        assert requests.get.call_count == 2
 
 
 _unset = object()

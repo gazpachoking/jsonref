@@ -136,6 +136,7 @@ class JsonRef(LazyProxy):
             kwargs["base_uri"] = uri
             kwargs["recursing"] = False
             base_doc = _replace_refs(base_doc, **kwargs)
+            self.store[uri] = base_doc
             result = self.resolve_pointer(base_doc, fragment)
         if result is self:
             raise self._error("Reference refers directly to itself.")
@@ -218,42 +219,13 @@ class URIDict(MutableMapping):
         return repr(self.store)
 
 
-class JsonLoader(object):
+def jsonloader(uri, **kwargs):
     """
     Provides a callable which takes a URI, and returns the loaded JSON referred
     to by that URI. Uses :mod:`requests` if available for HTTP URIs, and falls
-    back to :mod:`urllib`. By default it keeps a cache of previously loaded
-    documents.
-
-    :param store: A pre-populated dictionary matching URIs to loaded JSON
-        documents
-    :param cache_results: If this is set to false, the internal cache of
-        loaded JSON documents is not used
-
+    back to :mod:`urllib`.
     """
-
-    def __init__(self, store=(), cache_results=True):
-        self.store = _URIDict(store)
-        self.cache_results = cache_results
-
-    def __call__(self, uri, **kwargs):
-        """
-        Return the loaded JSON referred to by `uri`
-
-        :param uri: The URI of the JSON document to load
-        :param kwargs: Keyword arguments passed to :func:`json.loads`
-
-        """
-        if uri in self.store:
-            return self.store[uri]
-        else:
-            result = self.get_remote_json(uri, **kwargs)
-            if self.cache_results:
-                self.store[uri] = result
-            return result
-
-    def get_remote_json(self, uri, **kwargs):
-        scheme = urlparse.urlsplit(uri).scheme
+    scheme = urlparse.urlsplit(uri).scheme
 
     if scheme in ["http", "https"] and requests:
         # Prefer requests, it has better encoding detection
@@ -273,8 +245,6 @@ class JsonLoader(object):
 
     return result
 
-
-jsonloader = JsonLoader()
 
 _no_result = object()
 
