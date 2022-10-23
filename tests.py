@@ -1,3 +1,4 @@
+import functools
 import itertools
 import json
 import operator
@@ -23,30 +24,38 @@ def cmp(a, b):
     return (a > b) - (a < b)
 
 
+@pytest.fixture(
+    params=[{"lazy_load": True}, {"lazy_load": False}, {"proxies": False}],
+    ids=["lazy_load", "no lazy_load", "no proxies"],
+)
+def parametrized_replace_refs(request):
+    return functools.partial(replace_refs, **request.param)
+
+
 class TestJsonRef(object):
     def test_non_ref_object_throws_error(self):
         with pytest.raises(ValueError):
             JsonRef({"ref": "aoeu"})
 
-    def test_non_string_is_not_ref(self):
+    def test_non_string_is_not_ref(self, parametrized_replace_refs):
         json = {"$ref": [1]}
-        assert replace_refs(json) == json
+        assert parametrized_replace_refs(json) == json
 
-    def test_local_object_ref(self):
+    def test_local_object_ref(self, parametrized_replace_refs):
         json = {"a": 5, "b": {"$ref": "#/a"}}
-        assert replace_refs(json)["b"] == json["a"]
+        assert parametrized_replace_refs(json)["b"] == json["a"]
 
-    def test_local_array_ref(self):
+    def test_local_array_ref(self, parametrized_replace_refs):
         json = [10, {"$ref": "#/0"}]
-        assert replace_refs(json)[1] == json[0]
+        assert parametrized_replace_refs(json)[1] == json[0]
 
-    def test_local_mixed_ref(self):
+    def test_local_mixed_ref(self, parametrized_replace_refs):
         json = {"a": [5, 15], "b": {"$ref": "#/a/1"}}
-        assert replace_refs(json)["b"] == json["a"][1]
+        assert parametrized_replace_refs(json)["b"] == json["a"][1]
 
-    def test_local_escaped_ref(self):
+    def test_local_escaped_ref(self, parametrized_replace_refs):
         json = {"a/~a": ["resolved"], "b": {"$ref": "#/a~1~0a"}}
-        assert replace_refs(json)["b"] == json["a/~a"]
+        assert parametrized_replace_refs(json)["b"] == json["a/~a"]
 
     def test_local_nonexistent_ref(self):
         json = {
@@ -155,16 +164,18 @@ class TestJsonRef(object):
         # Make sure we only called the loader once
         loader.assert_called_once_with("foo")
 
-    def test_base_uri_resolution(self):
+    def test_base_uri_resolution(self, parametrized_replace_refs):
         json = {"$ref": "foo"}
         loader = mock.Mock(return_value=17)
-        result = replace_refs(json, base_uri="http://bar.com", loader=loader)
+        result = parametrized_replace_refs(
+            json, base_uri="http://bar.com", loader=loader
+        )
         assert result == 17
         loader.assert_called_once_with("http://bar.com/foo")
 
     def test_repr_does_not_loop(self):
         json = {"a": ["aoeu", {"$ref": "#/a"}]}
-        # By default python repr recursion detection should handle it
+        # By default, python repr recursion detection should handle it
         assert repr(replace_refs(json)) == "{'a': ['aoeu', [...]]}"
         # If we turn of load_on_repr we should get a different representation
         assert (
@@ -195,7 +206,7 @@ class TestJsonRef(object):
             "('e', JsonRef({'$ref': '#/d'})), ('f', JsonRef({'$ref': '#/e'}))]"
         )
 
-    def test_jsonschema_mode_local(self):
+    def test_jsonschema_mode_local(self, parametrized_replace_refs):
         json = {
             "a": {
                 "id": "http://foo.com/schema",
@@ -205,7 +216,7 @@ class TestJsonRef(object):
                 "c": {"$ref": "#/b"},
             }
         }
-        result = replace_refs(json, jsonschema=True)
+        result = parametrized_replace_refs(json, jsonschema=True)
         assert result["a"]["c"] == json["a"]["b"]
 
     def test_jsonschema_mode_remote(self):
@@ -234,20 +245,20 @@ class TestJsonRef(object):
         assert result["b"]["e"] == 3
         loader.assert_called_once_with("http://bar.com/b/otherSchema")
 
-    def test_jsonref_mode_non_string_is_not_id(self):
+    def test_jsonref_mode_non_string_is_not_id(self, parametrized_replace_refs):
         base_uri = "http://foo.com/json"
         json = {"id": [1], "$ref": "other"}
         loader = mock.Mock(return_value="aoeu")
-        result = replace_refs(json, base_uri=base_uri, loader=loader)
+        result = parametrized_replace_refs(json, base_uri=base_uri, loader=loader)
         assert result == "aoeu"
         loader.assert_called_once_with("http://foo.com/other")
 
-    def test_cache_loader_results(self):
+    def test_cache_loader_results(self, parametrized_replace_refs):
         loader = mock.Mock()
         loader.return_value = 1234
         json = {"a": {"$ref": "mock://aoeu"}, "b": {"$ref": "mock://aoeu"}}
 
-        result = replace_refs(json, loader=loader)
+        result = parametrized_replace_refs(json, loader=loader)
         assert result == {"a": 1234, "b": 1234}
         loader.assert_called_once_with("mock://aoeu")
 
