@@ -100,7 +100,7 @@ class JsonRef(LazyProxy):
         self.path = _path
         self.store = _store  # Use the same object to be shared with children
         if self.store is None:
-            self.store = _URIDict()
+            self.store = URIDict()
 
     @property
     def _ref_kwargs(self):
@@ -187,10 +187,9 @@ class JsonRef(LazyProxy):
         return "JsonRef(%r)" % self.__reference__
 
 
-class _URIDict(MutableMapping):
+class URIDict(MutableMapping):
     """
     Dictionary which uses normalized URIs as keys.
-
     """
 
     def normalize(self, uri):
@@ -337,7 +336,7 @@ def replace_refs(
         loader=loader,
         jsonschema=jsonschema,
         load_on_repr=load_on_repr,
-        store=_URIDict(),
+        store=URIDict(),
         path=(),
         recursing=False,
     )
