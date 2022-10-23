@@ -82,13 +82,14 @@ class TestJsonRef(object):
         assert result["c"].__subject__ is result["a"]
         assert result["d"].__subject__ is result["a"]
 
-    def test_ignored_sibling_attributes(self):
+    def test_extra_ref_attributes(self, parametrized_replace_refs):
         json = {
             "a": {"type": "object", "properties": {"foo": {"type": "string"}}},
             "b": {"extra": "foobar", "$ref": "#/a"},
+            "c": {"extra": {"more": "bar", "$ref": "#/a"}},
         }
-        result = replace_refs(json)
-        assert result["b"].__subject__ is {
+        result = parametrized_replace_refs(json, load_on_repr=False)
+        assert result["b"] == {
             "extra": "foobar",
             "type": "object",
             "properties": {"foo": {"type": "string"}},
@@ -101,20 +102,33 @@ class TestJsonRef(object):
             }
         }
 
-    def test_extra_sibling_attributes_list_ref(self):
+    def test_recursive_extra(self, parametrized_replace_refs):
+        json = {"a": {"$ref": "#", "extra": "foo"}}
+        result = parametrized_replace_refs(json)
+        assert result["a"]["a"] is result["a"]["a"]["a"]
+
+    def test_extra_sibling_attributes_list_ref(self, parametrized_replace_refs):
         json = {
             "a": ["target"],
             "b": {"extra": "foobar", "$ref": "#/a"},
         }
-        result = replace_refs(json)
-        with pytest.raises(JsonRefError) as excinfo:
-            result["b"].__subject__
-        e = excinfo.value
-        assert e.reference == json["b"]
-        assert e.uri == "#/a"
-        assert e.base_uri == ""
-        assert e.path == ["b"]
-        assert type(e.cause) == TypeError
+        result = parametrized_replace_refs(json)
+        assert result["b"] == result["a"]
+
+    def test_separate_extras(self, parametrized_replace_refs):
+        json = {
+            "a": {"main": 1234},
+            "x": {"$ref": "#/a", "extrax": "x"},
+            "y": {"$ref": "#/a", "extray": "y"},
+            "z": {"$ref": "#/y", "extraz": "z"},
+        }
+        result = parametrized_replace_refs(json)
+        assert result == {
+            "a": {"main": 1234},
+            "x": {"main": 1234, "extrax": "x"},
+            "y": {"main": 1234, "extray": "y"},
+            "z": {"main": 1234, "extraz": "z", "extray": "y"},
+        }
 
     def test_lazy_load(self):
         json = {

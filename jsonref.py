@@ -1,4 +1,3 @@
-import copy
 import functools
 import json
 import warnings
@@ -102,10 +101,6 @@ class JsonRef(LazyProxy):
         self.store = _store  # Use the same object to be shared with children
         if self.store is None:
             self.store = URIDict()
-        self.extra = None
-        if isinstance(refobj, Mapping) and len(refobj.keys()) > 1:
-            self.extra = copy.deepcopy(refobj)
-            del self.extra["$ref"]
 
     @property
     def _ref_kwargs(self):
@@ -146,6 +141,11 @@ class JsonRef(LazyProxy):
             raise self._error("Reference refers directly to itself.")
         if hasattr(result, "__subject__"):
             result = result.__subject__
+        if isinstance(result, Mapping) and len(self.__reference__) > 1:
+            result = {
+                **result,
+                **{k: v for k, v in self.__reference__.items() if k != "$ref"},
+            }
         return result
 
     def resolve_pointer(self, document, pointer):
@@ -168,10 +168,7 @@ class JsonRef(LazyProxy):
                 except ValueError:
                     pass
             try:
-                if self.extra:
-                    document = {**document[part], **self.extra}
-                else:
-                    document = document[part]
+                document = document[part]
             except (TypeError, LookupError) as e:
                 raise self._error(
                     "Unresolvable JSON pointer: %r" % pointer, cause=e
