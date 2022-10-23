@@ -256,23 +256,23 @@ class JsonLoader(object):
     def get_remote_json(self, uri, **kwargs):
         scheme = urlparse.urlsplit(uri).scheme
 
-        if scheme in ["http", "https"] and requests:
-            # Prefer requests, it has better encoding detection
-            resp = requests.get(uri)
-            # If the http server doesn't respond normally then raise exception
-            # e.g. 404, 500 error
-            resp.raise_for_status()
-            try:
-                result = resp.json(**kwargs)
-            except TypeError:
-                warnings.warn("requests >=1.2 required for custom kwargs to json.loads")
-                result = resp.json()
-        else:
-            # Otherwise, pass off to urllib and assume utf-8
-            with urlopen(uri) as content:
-                result = json.loads(content.read().decode("utf-8"), **kwargs)
+    if scheme in ["http", "https"] and requests:
+        # Prefer requests, it has better encoding detection
+        resp = requests.get(uri)
+        # If the http server doesn't respond normally then raise exception
+        # e.g. 404, 500 error
+        resp.raise_for_status()
+        try:
+            result = resp.json(**kwargs)
+        except TypeError:
+            warnings.warn("requests >=1.2 required for custom kwargs to json.loads")
+            result = resp.json()
+    else:
+        # Otherwise, pass off to urllib and assume utf-8
+        with urlopen(uri) as content:
+            result = json.loads(content.read().decode("utf-8"), **kwargs)
 
-        return result
+    return result
 
 
 jsonloader = JsonLoader()
@@ -324,8 +324,8 @@ def replace_refs(
         (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
     :param jsonschema: Flag to turn on `JSON Schema mode
         <http://json-schema.org/latest/json-schema-core.html#anchor25>`_.
-        'id' keyword changes the `base_uri` for references contained within
-        the object
+        'id' or '$id' keyword changes the `base_uri` for references contained
+        within the object
     :param load_on_repr: If set to ``False``, :func:`repr` call on a
         :class:`JsonRef` object will not cause the reference to be loaded
         if it hasn't already. (defaults to ``True``)
@@ -355,12 +355,12 @@ def _replace_refs(
     store_uri = None  # If this does not get set, we won't store the result
     if not frag and not recursing:
         store_uri = base_uri
-    try:
-        if jsonschema and isinstance(obj["id"], str):
-            base_uri = urlparse.urljoin(base_uri, obj["id"])
+    if jsonschema and isinstance(obj, Mapping):
+        # id changed to $id in later jsonschema versions
+        id_ = obj.get("$id") or obj.get("id")
+        if isinstance(id_, str):
+            base_uri = urlparse.urljoin(base_uri, id_)
             store_uri = base_uri
-    except (TypeError, LookupError):
-        pass
 
     try:
         if not isinstance(obj["$ref"], str):
