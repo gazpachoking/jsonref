@@ -282,12 +282,12 @@ _no_result = object()
 def walk_refs(obj, func, replace=False):
     if type(obj) is JsonRef:
         return func(obj)
-    if isinstance(obj, dict):
+    if isinstance(obj, Mapping):
         for k, v in obj.items():
             r = walk_refs(v, func, replace=replace)
             if r is not _no_result and replace:
                 obj[k] = r
-    elif isinstance(obj, list):
+    elif isinstance(obj, Sequence) and not isinstance(obj, str):
         for i, v in enumerate(obj):
             r = walk_refs(v, func, replace=replace)
             if r is not _no_result and replace:
