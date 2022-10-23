@@ -136,7 +136,6 @@ class JsonRef(LazyProxy):
             kwargs["base_uri"] = uri
             kwargs["recursing"] = False
             base_doc = _replace_refs(base_doc, **kwargs)
-            self.store[uri] = base_doc
             result = self.resolve_pointer(base_doc, fragment)
         if result is self:
             raise self._error("Reference refers directly to itself.")
