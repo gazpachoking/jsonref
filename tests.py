@@ -82,13 +82,25 @@ class TestJsonRef(object):
         assert result["c"].__subject__ is result["a"]
         assert result["d"].__subject__ is result["a"]
 
+    def test_merge_extra_flag(self, parametrized_replace_refs):
+        json = {
+            "a": {"main": 1},
+            "b": {"$ref": "#/a", "extra": 2},
+        }
+        no_extra = parametrized_replace_refs(json, merge_extra_properties=False)
+        assert no_extra == {"a": {"main": 1}, "b": {"main": 1}}
+        extra = parametrized_replace_refs(json, merge_extra_properties=True)
+        assert extra == {"a": {"main": 1}, "b": {"main": 1, "extra": 2}}
+
     def test_extra_ref_attributes(self, parametrized_replace_refs):
         json = {
             "a": {"type": "object", "properties": {"foo": {"type": "string"}}},
             "b": {"extra": "foobar", "$ref": "#/a"},
             "c": {"extra": {"more": "bar", "$ref": "#/a"}},
         }
-        result = parametrized_replace_refs(json, load_on_repr=False)
+        result = parametrized_replace_refs(
+            json, load_on_repr=False, merge_extra_properties=True
+        )
         assert result["b"] == {
             "extra": "foobar",
             "type": "object",
@@ -104,7 +116,8 @@ class TestJsonRef(object):
 
     def test_recursive_extra(self, parametrized_replace_refs):
         json = {"a": {"$ref": "#", "extra": "foo"}}
-        result = parametrized_replace_refs(json)
+        result = parametrized_replace_refs(json, merge_extra_properties=True)
+        assert result["a"]["a"]["extra"] == "foo"
         assert result["a"]["a"] is result["a"]["a"]["a"]
 
     def test_extra_sibling_attributes_list_ref(self, parametrized_replace_refs):
@@ -112,7 +125,7 @@ class TestJsonRef(object):
             "a": ["target"],
             "b": {"extra": "foobar", "$ref": "#/a"},
         }
-        result = parametrized_replace_refs(json)
+        result = parametrized_replace_refs(json, merge_extra_properties=True)
         assert result["b"] == result["a"]
 
     def test_separate_extras(self, parametrized_replace_refs):
@@ -122,7 +135,7 @@ class TestJsonRef(object):
             "y": {"$ref": "#/a", "extray": "y"},
             "z": {"$ref": "#/y", "extraz": "z"},
         }
-        result = parametrized_replace_refs(json)
+        result = parametrized_replace_refs(json, merge_extra_properties=True)
         assert result == {
             "a": {"main": 1234},
             "x": {"main": 1234, "extrax": "x"},

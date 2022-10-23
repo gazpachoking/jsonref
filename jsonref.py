@@ -87,6 +87,7 @@ class JsonRef(LazyProxy):
         loader=None,
         jsonschema=False,
         load_on_repr=True,
+        merge_extra_properties=False,
         _path=(),
         _store=None,
     ):
@@ -97,6 +98,7 @@ class JsonRef(LazyProxy):
         self.loader = loader or jsonloader
         self.jsonschema = jsonschema
         self.load_on_repr = load_on_repr
+        self.merge_extra_properties = merge_extra_properties
         self.path = _path
         self.store = _store  # Use the same object to be shared with children
         if self.store is None:
@@ -109,6 +111,7 @@ class JsonRef(LazyProxy):
             loader=self.loader,
             jsonschema=self.jsonschema,
             load_on_repr=self.load_on_repr,
+            merge_extra_properties=self.merge_extra_properties,
             path=self.path,
             store=self.store,
         )
@@ -141,7 +144,11 @@ class JsonRef(LazyProxy):
             raise self._error("Reference refers directly to itself.")
         if hasattr(result, "__subject__"):
             result = result.__subject__
-        if isinstance(result, Mapping) and len(self.__reference__) > 1:
+        if (
+            self.merge_extra_properties
+            and isinstance(result, Mapping)
+            and len(self.__reference__) > 1
+        ):
             result = {
                 **result,
                 **{k: v for k, v in self.__reference__.items() if k != "$ref"},
@@ -277,6 +284,7 @@ def replace_refs(
     loader=jsonloader,
     jsonschema=False,
     load_on_repr=True,
+    merge_extra_properties=False,
 ):
     """
     Returns a deep copy of `obj` with all contained JSON reference objects
@@ -302,6 +310,11 @@ def replace_refs(
     :param load_on_repr: If set to ``False``, :func:`repr` call on a
         :class:`JsonRef` object will not cause the reference to be loaded
         if it hasn't already. (defaults to ``True``)
+    :param merge_extra_properties: When ``True``, JSON reference objects that
+        have extra keys other than '$ref' in them will be merged into the
+        document resolved by the reference (if it is a dictionary.) NOTE: This
+        is not part of the JSON Reference spec, and may not behave the same as
+        other libraries.
 
     """
     result = _replace_refs(
@@ -310,6 +323,7 @@ def replace_refs(
         loader=loader,
         jsonschema=jsonschema,
         load_on_repr=load_on_repr,
+        merge_extra_properties=merge_extra_properties,
         store=URIDict(),
         path=(),
         recursing=False,
@@ -322,7 +336,16 @@ def replace_refs(
 
 
 def _replace_refs(
-    obj, *, base_uri, loader, jsonschema, load_on_repr, store, path, recursing
+    obj,
+    *,
+    base_uri,
+    loader,
+    jsonschema,
+    load_on_repr,
+    merge_extra_properties,
+    store,
+    path,
+    recursing
 ):
     base_uri, frag = urlparse.urldefrag(base_uri)
     store_uri = None  # If this does not get set, we won't store the result
@@ -347,6 +370,7 @@ def _replace_refs(
             loader=loader,
             jsonschema=jsonschema,
             load_on_repr=load_on_repr,
+            merge_extra_properties=merge_extra_properties,
             _path=path,
             _store=store,
         )
@@ -361,6 +385,7 @@ def _replace_refs(
                 loader=loader,
                 jsonschema=jsonschema,
                 load_on_repr=load_on_repr,
+                merge_extra_properties=merge_extra_properties,
                 store=store,
                 path=path + (k,),
                 recursing=True,
@@ -375,6 +400,7 @@ def _replace_refs(
                 loader=loader,
                 jsonschema=jsonschema,
                 load_on_repr=load_on_repr,
+                merge_extra_properties=merge_extra_properties,
                 store=store,
                 path=path + (i,),
                 recursing=True,
