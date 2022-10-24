@@ -17,7 +17,7 @@ except ImportError:
 
 from proxytypes import LazyProxy
 
-__version__ = "1.0.0b2"
+__version__ = "1.0.0b3"
 
 
 class JsonRefError(Exception):
@@ -87,7 +87,7 @@ class JsonRef(LazyProxy):
         loader=None,
         jsonschema=False,
         load_on_repr=True,
-        merge_extra_properties=False,
+        merge_props=False,
         _path=(),
         _store=None,
     ):
@@ -98,7 +98,7 @@ class JsonRef(LazyProxy):
         self.loader = loader or jsonloader
         self.jsonschema = jsonschema
         self.load_on_repr = load_on_repr
-        self.merge_extra_properties = merge_extra_properties
+        self.merge_props = merge_props
         self.path = _path
         self.store = _store  # Use the same object to be shared with children
         if self.store is None:
@@ -111,7 +111,7 @@ class JsonRef(LazyProxy):
             loader=self.loader,
             jsonschema=self.jsonschema,
             load_on_repr=self.load_on_repr,
-            merge_extra_properties=self.merge_extra_properties,
+            merge_props=self.merge_props,
             path=self.path,
             store=self.store,
         )
@@ -145,7 +145,7 @@ class JsonRef(LazyProxy):
         if hasattr(result, "__subject__"):
             result = result.__subject__
         if (
-            self.merge_extra_properties
+            self.merge_props
             and isinstance(result, Mapping)
             and len(self.__reference__) > 1
         ):
@@ -278,13 +278,13 @@ def walk_refs(obj, func, replace=False):
 
 def replace_refs(
     obj,
-    proxies=True,
-    lazy_load=True,
     base_uri="",
     loader=jsonloader,
     jsonschema=False,
     load_on_repr=True,
-    merge_extra_properties=False,
+    merge_props=False,
+    proxies=True,
+    lazy_load=True,
 ):
     """
     Returns a deep copy of `obj` with all contained JSON reference objects
@@ -294,12 +294,6 @@ def replace_refs(
         instance will be created. If `obj` is not a JSON reference object,
         a deep copy of it will be created with all contained JSON
         reference objects replaced by :class:`JsonRef` instances
-    :param proxies: If `True`, references will be replaced with transparent
-        proxy objects. Otherwise, they will be replaced directly with the
-        referred data. (defaults to ``True``)
-    :param lazy_load: When proxy objects are used, and this is `True`, the
-        references will not be resolved until that section of the JSON
-        document is accessed. (defaults to ``True``)
     :param base_uri: URI to resolve relative references against
     :param loader: Callable that takes a URI and returns the parsed JSON
         (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
@@ -310,11 +304,17 @@ def replace_refs(
     :param load_on_repr: If set to ``False``, :func:`repr` call on a
         :class:`JsonRef` object will not cause the reference to be loaded
         if it hasn't already. (defaults to ``True``)
-    :param merge_extra_properties: When ``True``, JSON reference objects that
+    :param merge_props: When ``True``, JSON reference objects that
         have extra keys other than '$ref' in them will be merged into the
         document resolved by the reference (if it is a dictionary.) NOTE: This
         is not part of the JSON Reference spec, and may not behave the same as
         other libraries.
+    :param proxies: If `True`, references will be replaced with transparent
+        proxy objects. Otherwise, they will be replaced directly with the
+        referred data. (defaults to ``True``)
+    :param lazy_load: When proxy objects are used, and this is `True`, the
+        references will not be resolved until that section of the JSON
+        document is accessed. (defaults to ``True``)
 
     """
     result = _replace_refs(
@@ -323,7 +323,7 @@ def replace_refs(
         loader=loader,
         jsonschema=jsonschema,
         load_on_repr=load_on_repr,
-        merge_extra_properties=merge_extra_properties,
+        merge_props=merge_props,
         store=URIDict(),
         path=(),
         recursing=False,
@@ -342,7 +342,7 @@ def _replace_refs(
     loader,
     jsonschema,
     load_on_repr,
-    merge_extra_properties,
+    merge_props,
     store,
     path,
     recursing
@@ -370,7 +370,7 @@ def _replace_refs(
             loader=loader,
             jsonschema=jsonschema,
             load_on_repr=load_on_repr,
-            merge_extra_properties=merge_extra_properties,
+            merge_props=merge_props,
             _path=path,
             _store=store,
         )
@@ -385,7 +385,7 @@ def _replace_refs(
                 loader=loader,
                 jsonschema=jsonschema,
                 load_on_repr=load_on_repr,
-                merge_extra_properties=merge_extra_properties,
+                merge_props=merge_props,
                 store=store,
                 path=path + (k,),
                 recursing=True,
@@ -400,7 +400,7 @@ def _replace_refs(
                 loader=loader,
                 jsonschema=jsonschema,
                 load_on_repr=load_on_repr,
-                merge_extra_properties=merge_extra_properties,
+                merge_props=merge_props,
                 store=store,
                 path=path + (i,),
                 recursing=True,
@@ -412,14 +412,24 @@ def _replace_refs(
     return obj
 
 
-def load(fp, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kwargs):
+def load(
+    fp,
+    base_uri="",
+    loader=None,
+    jsonschema=False,
+    load_on_repr=True,
+    merge_props=False,
+    proxies=True,
+    lazy_load=True,
+    **kwargs
+):
     """
     Drop in replacement for :func:`json.load`, where JSON references are
     proxied to their referent data.
 
     :param fp: File-like object containing JSON document
     :param kwargs: This function takes any of the keyword arguments from
-        :meth:`JsonRef.replace_refs`. Any other keyword arguments will be passed to
+        :func:`replace_refs`. Any other keyword arguments will be passed to
         :func:`json.load`
 
     """
@@ -433,17 +443,30 @@ def load(fp, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kw
         loader=loader,
         jsonschema=jsonschema,
         load_on_repr=load_on_repr,
+        merge_props=merge_props,
+        proxies=proxies,
+        lazy_load=lazy_load,
     )
 
 
-def loads(s, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kwargs):
+def loads(
+    s,
+    base_uri="",
+    loader=None,
+    jsonschema=False,
+    load_on_repr=True,
+    merge_props=False,
+    proxies=True,
+    lazy_load=True,
+    **kwargs
+):
     """
     Drop in replacement for :func:`json.loads`, where JSON references are
     proxied to their referent data.
 
     :param s: String containing JSON document
     :param kwargs: This function takes any of the keyword arguments from
-        :meth:`JsonRef.replace_refs`. Any other keyword arguments will be passed to
+        :func:`replace_refs`. Any other keyword arguments will be passed to
         :func:`json.loads`
 
     """
@@ -457,17 +480,29 @@ def loads(s, base_uri="", loader=None, jsonschema=False, load_on_repr=True, **kw
         loader=loader,
         jsonschema=jsonschema,
         load_on_repr=load_on_repr,
+        merge_props=merge_props,
+        proxies=proxies,
+        lazy_load=lazy_load,
     )
 
 
-def load_uri(uri, base_uri=None, loader=None, jsonschema=False, load_on_repr=True):
+def load_uri(
+    uri,
+    base_uri=None,
+    loader=None,
+    jsonschema=False,
+    load_on_repr=True,
+    merge_props=False,
+    proxies=True,
+    lazy_load=True,
+):
     """
     Load JSON data from ``uri`` with JSON references proxied to their referent
     data.
 
     :param uri: URI to fetch the JSON from
     :param kwargs: This function takes any of the keyword arguments from
-        :meth:`JsonRef.replace_refs`
+        :func:`replace_refs`
 
     """
 
@@ -482,6 +517,9 @@ def load_uri(uri, base_uri=None, loader=None, jsonschema=False, load_on_repr=Tru
         loader=loader,
         jsonschema=jsonschema,
         load_on_repr=load_on_repr,
+        merge_props=merge_props,
+        proxies=proxies,
+        lazy_load=lazy_load,
     )
 
 
