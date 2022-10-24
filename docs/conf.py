@@ -81,7 +81,7 @@ doctest_global_setup = dedent(
 """
 )
 
-intersphinx_mapping = {"python": ("https://docs.python.org/3.3", None)}
+intersphinx_mapping = {"python": ("https://docs.python.org/3.10", None)}
 
 
 # -- Options for HTML output ---------------------------------------------------
