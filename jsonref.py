@@ -17,7 +17,7 @@ except ImportError:
 
 from proxytypes import LazyProxy
 
-__version__ = "0.4.dev0"
+__version__ = "1.0.0b2"
 
 
 class JsonRefError(Exception):
