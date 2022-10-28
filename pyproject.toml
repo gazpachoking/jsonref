@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "jsonref"
-version = "1.0.0b3"
+version = "1.0.0"
 description = "jsonref is a library for automatic dereferencing of JSON Reference objects for Python."
 authors = ["Chase Sterling <chase.sterling@gmail.com>"]
 license = "MIT"
