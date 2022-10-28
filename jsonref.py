@@ -62,7 +62,7 @@ class JsonRef(LazyProxy):
             reference objects replaced by :class:`JsonRef` instances
         :param base_uri: URI to resolve relative references against
         :param loader: Callable that takes a URI and returns the parsed JSON
-            (defaults to global ``jsonloader``, a :class:`JsonLoader` instance)
+            (defaults to global ``jsonloader``)
         :param jsonschema: Flag to turn on `JSON Schema mode
             <http://json-schema.org/latest/json-schema-core.html#anchor25>`_.
             'id' keyword changes the `base_uri` for references contained within
