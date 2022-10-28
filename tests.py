@@ -1,3 +1,4 @@
+import functools
 import itertools
 import json
 import operator
@@ -6,7 +7,16 @@ from unittest import mock
 
 import pytest
 
-from jsonref import JsonLoader, JsonRef, JsonRefError, dump, dumps, load, loads
+from jsonref import (
+    JsonRef,
+    JsonRefError,
+    dump,
+    dumps,
+    jsonloader,
+    load,
+    loads,
+    replace_refs,
+)
 from proxytypes import CallbackProxy, LazyProxy, Proxy, notproxied
 
 
@@ -14,30 +24,38 @@ def cmp(a, b):
     return (a > b) - (a < b)
 
 
+@pytest.fixture(
+    params=[{"lazy_load": True}, {"lazy_load": False}, {"proxies": False}],
+    ids=["lazy_load", "no lazy_load", "no proxies"],
+)
+def parametrized_replace_refs(request):
+    return functools.partial(replace_refs, **request.param)
+
+
 class TestJsonRef(object):
     def test_non_ref_object_throws_error(self):
         with pytest.raises(ValueError):
             JsonRef({"ref": "aoeu"})
 
-    def test_non_string_is_not_ref(self):
+    def test_non_string_is_not_ref(self, parametrized_replace_refs):
         json = {"$ref": [1]}
-        assert JsonRef.replace_refs(json) == json
+        assert parametrized_replace_refs(json) == json
 
-    def test_local_object_ref(self):
+    def test_local_object_ref(self, parametrized_replace_refs):
         json = {"a": 5, "b": {"$ref": "#/a"}}
-        assert JsonRef.replace_refs(json)["b"] == json["a"]
+        assert parametrized_replace_refs(json)["b"] == json["a"]
 
-    def test_local_array_ref(self):
+    def test_local_array_ref(self, parametrized_replace_refs):
         json = [10, {"$ref": "#/0"}]
-        assert JsonRef.replace_refs(json)[1] == json[0]
+        assert parametrized_replace_refs(json)[1] == json[0]
 
-    def test_local_mixed_ref(self):
+    def test_local_mixed_ref(self, parametrized_replace_refs):
         json = {"a": [5, 15], "b": {"$ref": "#/a/1"}}
-        assert JsonRef.replace_refs(json)["b"] == json["a"][1]
+        assert parametrized_replace_refs(json)["b"] == json["a"][1]
 
-    def test_local_escaped_ref(self):
+    def test_local_escaped_ref(self, parametrized_replace_refs):
         json = {"a/~a": ["resolved"], "b": {"$ref": "#/a~1~0a"}}
-        assert JsonRef.replace_refs(json)["b"] == json["a/~a"]
+        assert parametrized_replace_refs(json)["b"] == json["a/~a"]
 
     def test_local_nonexistent_ref(self):
         json = {
@@ -47,7 +65,7 @@ class TestJsonRef(object):
             "c": {"$ref": "#/data/3"},
             "d": {"$ref": "#/data/b"},
         }
-        result = JsonRef.replace_refs(json)
+        result = replace_refs(json)
         for key in "abcd":
             with pytest.raises(JsonRefError):
                 result[key].__subject__
@@ -59,21 +77,127 @@ class TestJsonRef(object):
             "c": {"$ref": "#/a"},
             "d": {"$ref": "#/c"},
         }
-        result = JsonRef.replace_refs(json)
+        result = replace_refs(json)
         assert result["b"].__subject__ is result["a"]
         assert result["c"].__subject__ is result["a"]
         assert result["d"].__subject__ is result["a"]
 
+    def test_merge_extra_flag(self, parametrized_replace_refs):
+        json = {
+            "a": {"main": 1},
+            "b": {"$ref": "#/a", "extra": 2},
+        }
+        no_extra = parametrized_replace_refs(json, merge_props=False)
+        assert no_extra == {"a": {"main": 1}, "b": {"main": 1}}
+        extra = parametrized_replace_refs(json, merge_props=True)
+        assert extra == {"a": {"main": 1}, "b": {"main": 1, "extra": 2}}
+
+    def test_extra_ref_attributes(self, parametrized_replace_refs):
+        json = {
+            "a": {"type": "object", "properties": {"foo": {"type": "string"}}},
+            "b": {"extra": "foobar", "$ref": "#/a"},
+            "c": {"extra": {"more": "bar", "$ref": "#/a"}},
+        }
+        result = parametrized_replace_refs(json, load_on_repr=False, merge_props=True)
+        assert result["b"] == {
+            "extra": "foobar",
+            "type": "object",
+            "properties": {"foo": {"type": "string"}},
+        }
+        assert result["c"] == {
+            "extra": {
+                "more": "bar",
+                "type": "object",
+                "properties": {"foo": {"type": "string"}},
+            }
+        }
+
+    def test_recursive_extra(self, parametrized_replace_refs):
+        json = {"a": {"$ref": "#", "extra": "foo"}}
+        result = parametrized_replace_refs(json, merge_props=True)
+        assert result["a"]["a"]["extra"] == "foo"
+        assert result["a"]["a"] is result["a"]["a"]["a"]
+
+    def test_extra_sibling_attributes_list_ref(self, parametrized_replace_refs):
+        json = {
+            "a": ["target"],
+            "b": {"extra": "foobar", "$ref": "#/a"},
+        }
+        result = parametrized_replace_refs(json, merge_props=True)
+        assert result["b"] == result["a"]
+
+    def test_separate_extras(self, parametrized_replace_refs):
+        json = {
+            "a": {"main": 1234},
+            "x": {"$ref": "#/a", "extrax": "x"},
+            "y": {"$ref": "#/a", "extray": "y"},
+            "z": {"$ref": "#/y", "extraz": "z"},
+        }
+        result = parametrized_replace_refs(json, merge_props=True)
+        assert result == {
+            "a": {"main": 1234},
+            "x": {"main": 1234, "extrax": "x"},
+            "y": {"main": 1234, "extray": "y"},
+            "z": {"main": 1234, "extraz": "z", "extray": "y"},
+        }
+
+    def test_lazy_load(self):
+        json = {
+            "a": {"$ref": "#/fake"},
+        }
+        # No errors should be raised when we replace the references
+        result = replace_refs(json, lazy_load=True)
+        assert result["a"].__reference__ == json["a"]
+        # The error should happen when we access the attribute
+        with pytest.raises(JsonRefError):
+            result["a"].__subject__
+
+    def test_no_lazy_load(self):
+        json = {
+            "a": {"$ref": "#/fake"},
+        }
+        # Error should raise straight away without lazy loading
+        with pytest.raises(JsonRefError):
+            result = replace_refs(json, lazy_load=False)
+
+    def test_no_lazy_load_recursive(self):
+        json = {
+            "a": {"1": {"$ref": "#/b"}},
+            "b": {"$ref": "#/a"},
+        }
+        # If resolution happens too early, the recursion won't work
+        # Make sure we don't break recursion when we aren't being lazy
+        result = replace_refs(json, lazy_load=False)
+
+    def test_proxies(self):
+        json = {
+            "a": [1],
+            "b": {"$ref": "#/a"},
+        }
+        result = replace_refs(json, proxies=True)
+        assert result["b"].__reference__
+        assert result["b"].__subject__ is result["a"]
+
+    def test_no_proxies(self):
+        json = {
+            "a": [1],
+            "b": {"$ref": "#/a"},
+        }
+        result = replace_refs(json, proxies=False)
+        assert result["b"] is result["a"]
+
     def test_recursive_data_structures_local(self):
         json = {"a": "foobar", "b": {"$ref": "#"}}
-        result = JsonRef.replace_refs(json)
+        result = replace_refs(json)
         assert result["b"].__subject__ is result
 
     def test_recursive_data_structures_remote(self):
         json1 = {"a": {"$ref": "/json2"}}
         json2 = {"b": {"$ref": "/json1"}}
-        loader = mock.Mock(return_value=json2)
-        result = JsonRef.replace_refs(json1, base_uri="/json1", loader=loader)
+        loader = lambda uri: {"/json1": json1, "/json2": json2}[uri]
+        result = replace_refs(
+            json1, base_uri="/json1", loader=loader, load_on_repr=False
+        )
         assert result["a"]["b"].__subject__ is result
         assert result["a"].__subject__ is result["a"]["b"]["a"].__subject__
 
@@ -81,13 +205,13 @@ class TestJsonRef(object):
         json1 = {"a": {"$ref": "/json2#/b"}}
         json2 = {"b": {"$ref": "/json1"}}
         loader = mock.Mock(return_value=json2)
-        result = JsonRef.replace_refs(json1, base_uri="/json1", loader=loader)
+        result = replace_refs(json1, base_uri="/json1", loader=loader)
         assert result["a"].__subject__ is result
 
     def test_custom_loader(self):
         data = {"$ref": "foo"}
         loader = mock.Mock(return_value=42)
-        result = JsonRef.replace_refs(data, loader=loader)
+        result = replace_refs(data, loader=loader)
         # Loading should not occur until we do something with result
         assert loader.call_count == 0
         # Make sure we got the right result
@@ -99,20 +223,22 @@ class TestJsonRef(object):
         # Make sure we only called the loader once
         loader.assert_called_once_with("foo")
 
-    def test_base_uri_resolution(self):
+    def test_base_uri_resolution(self, parametrized_replace_refs):
         json = {"$ref": "foo"}
         loader = mock.Mock(return_value=17)
-        result = JsonRef.replace_refs(json, base_uri="http://bar.com", loader=loader)
+        result = parametrized_replace_refs(
+            json, base_uri="http://bar.com", loader=loader
+        )
         assert result == 17
         loader.assert_called_once_with("http://bar.com/foo")
 
     def test_repr_does_not_loop(self):
         json = {"a": ["aoeu", {"$ref": "#/a"}]}
-        # By default python repr recursion detection should handle it
-        assert repr(JsonRef.replace_refs(json)) == "{'a': ['aoeu', [...]]}"
+        # By default, python repr recursion detection should handle it
+        assert repr(replace_refs(json)) == "{'a': ['aoeu', [...]]}"
         # If we turn of load_on_repr we should get a different representation
         assert (
-            repr(JsonRef.replace_refs(json, load_on_repr=False))
+            repr(replace_refs(json, load_on_repr=False))
             == "{'a': ['aoeu', JsonRef({'$ref': '#/a'})]}"
         )
 
@@ -126,12 +252,12 @@ class TestJsonRef(object):
             "f": {"$ref": "#/e"},
         }
         assert (
-            repr(sorted(JsonRef.replace_refs(json).items()))
+            repr(sorted(replace_refs(json).items()))
             == "[('a', 'string'), ('b', 'string'), ('c', 'string'), "
             "('d', 'string'), ('e', 'string'), ('f', 'string')]"
         )
         # Should not expand when set to False explicitly
-        result = JsonRef.replace_refs(json, load_on_repr=False)
+        result = replace_refs(json, load_on_repr=False)
         assert (
             repr(sorted(result.items()))
             == "[('a', 'string'), ('b', JsonRef({'$ref': '#/a'})), "
@@ -139,7 +265,7 @@ class TestJsonRef(object):
             "('e', JsonRef({'$ref': '#/d'})), ('f', JsonRef({'$ref': '#/e'}))]"
         )
 
-    def test_jsonschema_mode_local(self):
+    def test_jsonschema_mode_local(self, parametrized_replace_refs):
         json = {
             "a": {
                 "id": "http://foo.com/schema",
@@ -149,7 +275,7 @@ class TestJsonRef(object):
                 "c": {"$ref": "#/b"},
             }
         }
-        result = JsonRef.replace_refs(json, jsonschema=True)
+        result = parametrized_replace_refs(json, jsonschema=True)
         assert result["a"]["c"] == json["a"]["b"]
 
     def test_jsonschema_mode_remote(self):
@@ -165,9 +291,7 @@ class TestJsonRef(object):
         }
         counter = itertools.count()
         loader = mock.Mock(side_effect=lambda uri: next(counter))
-        result = JsonRef.replace_refs(
-            json, loader=loader, base_uri=base_uri, jsonschema=True
-        )
+        result = replace_refs(json, loader=loader, base_uri=base_uri, jsonschema=True)
         assert result["a"] == 0
         loader.assert_called_once_with("http://foo.com/otherSchema")
         loader.reset_mock()
@@ -180,26 +304,35 @@ class TestJsonRef(object):
         assert result["b"]["e"] == 3
         loader.assert_called_once_with("http://bar.com/b/otherSchema")
 
-    def test_jsonref_mode_non_string_is_not_id(self):
+    def test_jsonref_mode_non_string_is_not_id(self, parametrized_replace_refs):
         base_uri = "http://foo.com/json"
         json = {"id": [1], "$ref": "other"}
         loader = mock.Mock(return_value="aoeu")
-        result = JsonRef.replace_refs(json, base_uri=base_uri, loader=loader)
+        result = parametrized_replace_refs(json, base_uri=base_uri, loader=loader)
         assert result == "aoeu"
         loader.assert_called_once_with("http://foo.com/other")
+
+    def test_cache_loader_results(self, parametrized_replace_refs):
+        loader = mock.Mock()
+        loader.return_value = 1234
+        json = {"a": {"$ref": "mock://aoeu"}, "b": {"$ref": "mock://aoeu"}}
+
+        result = parametrized_replace_refs(json, loader=loader)
+        assert result == {"a": 1234, "b": 1234}
+        loader.assert_called_once_with("mock://aoeu")
 
 
 class TestJsonRefErrors(object):
     def test_basic_error_properties(self):
         json = [{"$ref": "#/x"}]
-        result = JsonRef.replace_refs(json)
+        result = replace_refs(json)
         with pytest.raises(JsonRefError) as excinfo:
             result[0].__subject__
         e = excinfo.value
         assert e.reference == json[0]
         assert e.uri == "#/x"
         assert e.base_uri == ""
-        assert e.path == [0]
+        assert e.path == (0,)
         assert type(e.cause) == TypeError
 
     def test_nested_refs(self):
@@ -208,11 +341,11 @@ class TestJsonRefErrors(object):
             "b": {"$ref": "#/c"},
             "c": {"$ref": "#/foo"},
         }
-        result = JsonRef.replace_refs(json)
+        result = replace_refs(json)
         with pytest.raises(JsonRefError) as excinfo:
             print(result["a"])
         e = excinfo.value
-        assert e.path == ["c"]
+        assert e.path == ("c",)
 
 
 class TestApi(object):
@@ -249,62 +382,28 @@ class TestApi(object):
 
 
 class TestJsonLoader(object):
-
-    base_uri = ""
-    stored_uri = "foo://stored"
-    stored_schema = {"stored": "schema"}
-
-    @pytest.fixture(scope="function", autouse=True)
-    def set_loader(self, request):
-        request.cls.store = {self.stored_uri: self.stored_schema}
-        request.cls.loader = JsonLoader(store=request.cls.store)
-
-    def test_it_retrieves_stored_refs(self):
-        result = self.loader(self.stored_uri)
-        assert result is self.stored_schema
-
-    def test_it_retrieves_unstored_refs_via_requests(self):
+    def test_it_retrieves_refs_via_requests(self):
         ref = "http://bar"
         data = {"baz": 12}
 
         with mock.patch("jsonref.requests") as requests:
             requests.get.return_value.json.return_value = data
-            result = self.loader(ref)
+            result = jsonloader(ref)
             assert result == data
         requests.get.assert_called_once_with("http://bar")
 
-    def test_it_retrieves_unstored_refs_via_urlopen(self):
+    def test_it_retrieves_refs_via_urlopen(self):
         ref = "http://bar"
         data = {"baz": 12}
 
         with mock.patch("jsonref.requests", None):
             with mock.patch("jsonref.urlopen") as urlopen:
-                urlopen.return_value.read.return_value = json.dumps(data).encode("utf8")
-                result = self.loader(ref)
+                urlopen.return_value.__enter__.return_value.read.return_value = (
+                    json.dumps(data).encode("utf8")
+                )
+                result = jsonloader(ref)
                 assert result == data
         urlopen.assert_called_once_with("http://bar")
-
-    def test_cache_results_on(self):
-        ref = "http://bar"
-        data = {"baz": 12}
-
-        with mock.patch("jsonref.requests") as requests:
-            requests.get.return_value.json.return_value = data
-            dereferencer = JsonLoader(cache_results=True)
-            dereferencer(ref)
-            dereferencer(ref)
-        requests.get.assert_called_once_with(ref)
-
-    def test_cache_results_off(self):
-        ref = "http://bar"
-        data = {"baz": 12}
-
-        with mock.patch("jsonref.requests") as requests:
-            requests.get.return_value.json.return_value = data
-            dereferencer = JsonLoader(cache_results=False)
-            dereferencer(ref)
-            dereferencer(ref)
-        assert requests.get.call_count == 2
 
 
 _unset = object()
