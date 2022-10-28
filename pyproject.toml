@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "jsonref"
-version = "1.0.0"
+version = "1.0.0.post1"
 description = "jsonref is a library for automatic dereferencing of JSON Reference objects for Python."
 authors = ["Chase Sterling <chase.sterling@gmail.com>"]
 license = "MIT"
@@ -9,6 +9,8 @@ packages = [
     { include = "jsonref.py" },
     { include = "proxytypes.py" },
 ]
+repository = "https://github.com/gazpachoking/jsonref"
+documentation = "https://jsonref.readthedocs.io/en/latest/"
 
 [tool.poetry.dependencies]
 python = "^3.3"
