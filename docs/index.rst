@@ -154,11 +154,10 @@ objects pass the URI to a callable, set with the keyword argument ``loader``.
 This callable must take the URI as an argument, and return the parsed JSON
 referred to by that URI.
 
-The :class:`JsonLoader` class is provided to fill this role, and a default
-instance of it will be used for all refs unless a custom one is specified.
+The :func:`jsonloader` function is provided to fill this role, and
+it will be used for all refs unless a custom one is specified.
 
-.. autoclass:: JsonLoader
-    :members: __call__
+.. autofunction:: jsonloader
 
 Custom Loaders
 ----------
