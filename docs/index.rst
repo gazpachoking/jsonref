@@ -154,11 +154,23 @@ objects pass the URI to a callable, set with the keyword argument ``loader``.
 This callable must take the URI as an argument, and return the parsed JSON
 referred to by that URI.
 
-The :class:`JsonLoader` class is provided to fill this role, and a default
-instance of it will be used for all refs unless a custom one is specified.
+The :func:`jsonloader` function is provided to fill this role. It handles http, https,
+and file references.
 
-.. autoclass:: JsonLoader
-    :members: __call__
+.. autofunction:: jsonloader
+
+If you wish to pass extra arguments to :func:`json.loads` call, they can be passed
+through kwargs to this function. e.g.::
+
+    import decimal
+    import functools
+
+    import jsonref
+
+
+    loader = functools.partial(jsonref.jsonloader, parse_float=decimal.Decimal)
+    result = jsonref.load_uri("https://my_doc_uri", loader=loader)
+
 
 Custom Loaders
 ----------
