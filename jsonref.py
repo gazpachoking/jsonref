@@ -260,17 +260,17 @@ def jsonloader(uri, **kwargs):
 _no_result = object()
 
 
-def walk_refs(obj, func, replace=False):
+def _walk_refs(obj, func, replace=False):
     if type(obj) is JsonRef:
         return func(obj)
     if isinstance(obj, Mapping):
         for k, v in obj.items():
-            r = walk_refs(v, func, replace=replace)
+            r = _walk_refs(v, func, replace=replace)
             if r is not _no_result and replace:
                 obj[k] = r
     elif isinstance(obj, Sequence) and not isinstance(obj, str):
         for i, v in enumerate(obj):
-            r = walk_refs(v, func, replace=replace)
+            r = _walk_refs(v, func, replace=replace)
             if r is not _no_result and replace:
                 obj[i] = r
     return _no_result
@@ -329,9 +329,9 @@ def replace_refs(
         recursing=False,
     )
     if not proxies:
-        walk_refs(result, lambda r: r.__subject__, replace=True)
+        _walk_refs(result, lambda r: r.__subject__, replace=True)
     elif not lazy_load:
-        walk_refs(result, lambda r: r.__subject__)
+        _walk_refs(result, lambda r: r.__subject__)
     return result
 
 
