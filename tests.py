@@ -10,6 +10,7 @@ import pytest
 from jsonref import (
     JsonRef,
     JsonRefError,
+    _walk_refs,
     dump,
     dumps,
     jsonloader,
@@ -185,6 +186,31 @@ class TestJsonRef(object):
         }
         result = replace_refs(json, proxies=False)
         assert result["b"] is result["a"]
+
+    def test_walk_refs(self):
+        docs = {
+            "a.json": {"file": "a", "b": {"$ref": "b.json"}},
+            "b.json": {"file": "b", "c": {"$ref": "c.json"}},
+            "c.json": {"file": "c"},
+        }
+        test_func = mock.Mock()
+        res = replace_refs(docs["a.json"], loader=docs.get)
+        _walk_refs(res, test_func)
+        # Make sure it followed the refs through documents
+        assert test_func.call_count == 2
+
+    def test_multi_doc_no_proxies(self):
+        docs = {
+            "a.json": {"file": "a", "b": {"$ref": "b.json"}},
+            "b.json": {"file": "b", "c": {"$ref": "c.json"}},
+            "c.json": {"file": "c"},
+        }
+        test_func = mock.Mock()
+        res = replace_refs(docs["a.json"], loader=docs.get, proxies=False)
+        _walk_refs(res, test_func)
+        # Make sure there aren't any JsonRefs left
+        assert test_func.call_count == 0
+        assert res == {"file": "a", "b": {"file": "b", "c": {"file": "c"}}}
 
     def test_recursive_data_structures_local(self):
         json = {"a": "foobar", "b": {"$ref": "#"}}

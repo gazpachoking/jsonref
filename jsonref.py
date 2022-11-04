@@ -257,23 +257,27 @@ def jsonloader(uri, **kwargs):
     return result
 
 
-_no_result = object()
-
-
-def _walk_refs(obj, func, replace=False):
+def _walk_refs(obj, func, replace=False, _processed=None):
+    # Keep track of already processed items to prevent recursion
+    _processed = _processed or {}
+    oid = id(obj)
+    if oid in _processed:
+        return _processed[oid]
     if type(obj) is JsonRef:
-        return func(obj)
+        r = func(obj)
+        obj = r if replace else obj
+    _processed[oid] = obj
     if isinstance(obj, Mapping):
         for k, v in obj.items():
-            r = _walk_refs(v, func, replace=replace)
-            if r is not _no_result and replace:
+            r = _walk_refs(v, func, replace=replace, _processed=_processed)
+            if replace:
                 obj[k] = r
     elif isinstance(obj, Sequence) and not isinstance(obj, str):
         for i, v in enumerate(obj):
-            r = _walk_refs(v, func, replace=replace)
-            if r is not _no_result and replace:
+            r = _walk_refs(v, func, replace=replace, _processed=_processed)
+            if replace:
                 obj[i] = r
-    return _no_result
+    return obj
 
 
 def replace_refs(
