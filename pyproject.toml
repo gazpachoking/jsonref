@@ -7,7 +7,7 @@ authors = [
 license = {text = "MIT"}
 readme = "README.md"
 dynamic = ["version"]
-requires-python = ">=3.3"
+requires-python = ">=3.7"
 dependencies = []
 
 [project.urls]
@@ -28,4 +28,3 @@ build-backend = "pdm.pep517.api"
 
 [tool.isort]
 profile = "black"
-

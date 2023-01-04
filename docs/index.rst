@@ -8,7 +8,7 @@ jsonref
 
 ``jsonref`` is a library for automatic dereferencing of
 `JSON Reference <https://tools.ietf.org/id/draft-pbryan-zyp-json-ref-03.html>`_
-objects for Python (supporting Python 3.3+).
+objects for Python (supporting Python 3.7+).
 
 .. testcode::
 
