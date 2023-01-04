@@ -124,9 +124,7 @@ class JsonRef(LazyProxy):
         uri, fragment = urlparse.urldefrag(self.full_uri)
 
         # If we already looked this up, return a reference to the same object
-        if uri in self.store:
-            result = self.resolve_pointer(self.store[uri], fragment)
-        else:
+        if uri not in self.store:
             # Remote ref
             try:
                 base_doc = self.loader(uri)
@@ -134,11 +132,16 @@ class JsonRef(LazyProxy):
                 raise self._error(
                     "%s: %s" % (e.__class__.__name__, str(e)), cause=e
                 ) from e
-
-            kwargs = self._ref_kwargs
-            kwargs["base_uri"] = uri
-            kwargs["recursing"] = False
-            base_doc = _replace_refs(base_doc, **kwargs)
+            base_doc = _replace_refs(
+                base_doc, **{**self._ref_kwargs, "base_uri": uri, "recursing": False}
+            )
+        else:
+            base_doc = self.store[uri]
+        if base_doc is self:
+            # A reference pointing to a property within itself is dubious,
+            # but we'll allow it. Issue #51
+            result = self.resolve_pointer(self.__reference__, fragment)
+        else:
             result = self.resolve_pointer(base_doc, fragment)
         if result is self:
             raise self._error("Reference refers directly to itself.")

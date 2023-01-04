@@ -234,6 +234,16 @@ class TestJsonRef(object):
         result = replace_refs(json1, base_uri="/json1", loader=loader)
         assert result["a"].__subject__ is result
 
+    def test_self_referent_reference(self):
+        json = {"$ref": "#/sub", "sub": [1, 2]}
+        result = replace_refs(json)
+        assert result == json["sub"]
+
+    def test_self_referent_reference_w_merge(self):
+        json = {"$ref": "#/sub", "extra": "aoeu", "sub": {"main": "aoeu"}}
+        result = replace_refs(json, merge_props=True)
+        assert result == {"main": "aoeu", "extra": "aoeu", "sub": {"main": "aoeu"}}
+
     def test_custom_loader(self):
         data = {"$ref": "foo"}
         loader = mock.Mock(return_value=42)
