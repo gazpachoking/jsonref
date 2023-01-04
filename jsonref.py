@@ -152,9 +152,13 @@ class JsonRef(LazyProxy):
             and isinstance(result, Mapping)
             and len(self.__reference__) > 1
         ):
+            extra_props = {k: v for k, v in self.__reference__.items() if k != "$ref"}
+            extra_props = _replace_refs(
+                extra_props, **{**self._ref_kwargs, "recursing": True}
+            )
             result = {
                 **result,
-                **{k: v for k, v in self.__reference__.items() if k != "$ref"},
+                **extra_props,
             }
         return result
 

@@ -113,6 +113,18 @@ class TestJsonRef(object):
             }
         }
 
+    def test_refs_inside_extra_props(self):
+        """This seems really dubious... but OpenAPI 3.1 spec does it."""
+        docs = {
+            "a.json": {
+                "file": "a",
+                "b": {"$ref": "b.json#/ba", "extra": {"$ref": "b.json#/bb"}},
+            },
+            "b.json": {"ba": {"a": 1}, "bb": {"b": 2}},
+        }
+        result = replace_refs(docs["a.json"], loader=docs.get, merge_props=True)
+        assert result == {"file": "a", "b": {"a": 1, "extra": {"b": 2}}}
+
     def test_recursive_extra(self, parametrized_replace_refs):
         json = {"a": {"$ref": "#", "extra": "foo"}}
         result = parametrized_replace_refs(json, merge_props=True)
