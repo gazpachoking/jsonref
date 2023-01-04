@@ -137,12 +137,7 @@ class JsonRef(LazyProxy):
             )
         else:
             base_doc = self.store[uri]
-        if base_doc is self:
-            # A reference pointing to a property within itself is dubious,
-            # but we'll allow it. Issue #51
-            result = self.resolve_pointer(self.__reference__, fragment)
-        else:
-            result = self.resolve_pointer(base_doc, fragment)
+        result = self.resolve_pointer(base_doc, fragment)
         if result is self:
             raise self._error("Reference refers directly to itself.")
         if hasattr(result, "__subject__"):
@@ -152,13 +147,9 @@ class JsonRef(LazyProxy):
             and isinstance(result, Mapping)
             and len(self.__reference__) > 1
         ):
-            extra_props = {k: v for k, v in self.__reference__.items() if k != "$ref"}
-            extra_props = _replace_refs(
-                extra_props, **{**self._ref_kwargs, "recursing": True}
-            )
             result = {
                 **result,
-                **extra_props,
+                **{k: v for k, v in self.__reference__.items() if k != "$ref"},
             }
         return result
 
@@ -181,6 +172,9 @@ class JsonRef(LazyProxy):
                     part = int(part)
                 except ValueError:
                     pass
+            # If a reference points inside itself, it must mean inside reference object, not the referent data
+            if document is self:
+                document = self.__reference__
             try:
                 document = document[part]
             except (TypeError, LookupError) as e:
@@ -369,20 +363,8 @@ def _replace_refs(
             base_uri = urlparse.urljoin(base_uri, id_)
             store_uri = base_uri
 
-    if isinstance(obj, Mapping) and isinstance(obj.get("$ref"), str):
-        obj = JsonRef(
-            obj,
-            base_uri=base_uri,
-            loader=loader,
-            jsonschema=jsonschema,
-            load_on_repr=load_on_repr,
-            merge_props=merge_props,
-            _path=path,
-            _store=store,
-        )
-    # If our obj was not a json reference object, iterate through it,
-    # replacing children with JsonRefs
-    elif isinstance(obj, Mapping):
+    # First recursively iterate through our object, replacing children with JsonRefs
+    if isinstance(obj, Mapping):
         obj = {
             k: _replace_refs(
                 v,
@@ -412,8 +394,24 @@ def _replace_refs(
             )
             for i, v in enumerate(obj)
         ]
+
+    # If this object itself was a reference, replace it with a JsonRef
+    if isinstance(obj, Mapping) and isinstance(obj.get("$ref"), str):
+        obj = JsonRef(
+            obj,
+            base_uri=base_uri,
+            loader=loader,
+            jsonschema=jsonschema,
+            load_on_repr=load_on_repr,
+            merge_props=merge_props,
+            _path=path,
+            _store=store,
+        )
+
+    # Store the document with all references replaced in our cache
     if store_uri is not None:
         store[store_uri] = obj
+
     return obj
 
 
@@ -433,7 +431,7 @@ def load(
     proxied to their referent data.
 
     :param fp: File-like object containing JSON document
-    :param kwargs: This function takes any of the keyword arguments from
+    :param **kwargs: This function takes any of the keyword arguments from
         :func:`replace_refs`. Any other keyword arguments will be passed to
         :func:`json.load`
 
@@ -470,7 +468,7 @@ def loads(
     proxied to their referent data.
 
     :param s: String containing JSON document
-    :param kwargs: This function takes any of the keyword arguments from
+    :param **kwargs: This function takes any of the keyword arguments from
         :func:`replace_refs`. Any other keyword arguments will be passed to
         :func:`json.loads`
 
@@ -506,7 +504,7 @@ def load_uri(
     data.
 
     :param uri: URI to fetch the JSON from
-    :param kwargs: This function takes any of the keyword arguments from
+    :param **kwargs: This function takes any of the keyword arguments from
         :func:`replace_refs`
 
     """
