@@ -362,13 +362,8 @@ def _replace_refs(
             base_uri = urlparse.urljoin(base_uri, id_)
             store_uri = base_uri
 
-    try:
-        if not isinstance(obj["$ref"], str):
-            raise TypeError
-    except (TypeError, LookupError):
-        pass
-    else:
-        return JsonRef(
+    if isinstance(obj, Mapping) and isinstance(obj.get("$ref"), str):
+        obj = JsonRef(
             obj,
             base_uri=base_uri,
             loader=loader,
@@ -378,10 +373,9 @@ def _replace_refs(
             _path=path,
             _store=store,
         )
-
     # If our obj was not a json reference object, iterate through it,
     # replacing children with JsonRefs
-    if isinstance(obj, Mapping):
+    elif isinstance(obj, Mapping):
         obj = {
             k: _replace_refs(
                 v,
