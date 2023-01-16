@@ -17,7 +17,7 @@ except ImportError:
 
 from proxytypes import LazyProxy
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 
 class JsonRefError(Exception):
@@ -124,9 +124,7 @@ class JsonRef(LazyProxy):
         uri, fragment = urlparse.urldefrag(self.full_uri)
 
         # If we already looked this up, return a reference to the same object
-        if uri in self.store:
-            result = self.resolve_pointer(self.store[uri], fragment)
-        else:
+        if uri not in self.store:
             # Remote ref
             try:
                 base_doc = self.loader(uri)
@@ -134,12 +132,12 @@ class JsonRef(LazyProxy):
                 raise self._error(
                     "%s: %s" % (e.__class__.__name__, str(e)), cause=e
                 ) from e
-
-            kwargs = self._ref_kwargs
-            kwargs["base_uri"] = uri
-            kwargs["recursing"] = False
-            base_doc = _replace_refs(base_doc, **kwargs)
-            result = self.resolve_pointer(base_doc, fragment)
+            base_doc = _replace_refs(
+                base_doc, **{**self._ref_kwargs, "base_uri": uri, "recursing": False}
+            )
+        else:
+            base_doc = self.store[uri]
+        result = self.resolve_pointer(base_doc, fragment)
         if result is self:
             raise self._error("Reference refers directly to itself.")
         if hasattr(result, "__subject__"):
@@ -174,6 +172,9 @@ class JsonRef(LazyProxy):
                     part = int(part)
                 except ValueError:
                     pass
+            # If a reference points inside itself, it must mean inside reference object, not the referent data
+            if document is self:
+                document = self.__reference__
             try:
                 document = document[part]
             except (TypeError, LookupError) as e:
@@ -362,25 +363,7 @@ def _replace_refs(
             base_uri = urlparse.urljoin(base_uri, id_)
             store_uri = base_uri
 
-    try:
-        if not isinstance(obj["$ref"], str):
-            raise TypeError
-    except (TypeError, LookupError):
-        pass
-    else:
-        return JsonRef(
-            obj,
-            base_uri=base_uri,
-            loader=loader,
-            jsonschema=jsonschema,
-            load_on_repr=load_on_repr,
-            merge_props=merge_props,
-            _path=path,
-            _store=store,
-        )
-
-    # If our obj was not a json reference object, iterate through it,
-    # replacing children with JsonRefs
+    # First recursively iterate through our object, replacing children with JsonRefs
     if isinstance(obj, Mapping):
         obj = {
             k: _replace_refs(
@@ -411,8 +394,24 @@ def _replace_refs(
             )
             for i, v in enumerate(obj)
         ]
+
+    # If this object itself was a reference, replace it with a JsonRef
+    if isinstance(obj, Mapping) and isinstance(obj.get("$ref"), str):
+        obj = JsonRef(
+            obj,
+            base_uri=base_uri,
+            loader=loader,
+            jsonschema=jsonschema,
+            load_on_repr=load_on_repr,
+            merge_props=merge_props,
+            _path=path,
+            _store=store,
+        )
+
+    # Store the document with all references replaced in our cache
     if store_uri is not None:
         store[store_uri] = obj
+
     return obj
 
 
@@ -432,7 +431,7 @@ def load(
     proxied to their referent data.
 
     :param fp: File-like object containing JSON document
-    :param kwargs: This function takes any of the keyword arguments from
+    :param **kwargs: This function takes any of the keyword arguments from
         :func:`replace_refs`. Any other keyword arguments will be passed to
         :func:`json.load`
 
@@ -469,7 +468,7 @@ def loads(
     proxied to their referent data.
 
     :param s: String containing JSON document
-    :param kwargs: This function takes any of the keyword arguments from
+    :param **kwargs: This function takes any of the keyword arguments from
         :func:`replace_refs`. Any other keyword arguments will be passed to
         :func:`json.loads`
 
@@ -505,7 +504,7 @@ def load_uri(
     data.
 
     :param uri: URI to fetch the JSON from
-    :param kwargs: This function takes any of the keyword arguments from
+    :param **kwargs: This function takes any of the keyword arguments from
         :func:`replace_refs`
 
     """

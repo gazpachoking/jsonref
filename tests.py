@@ -113,6 +113,18 @@ class TestJsonRef(object):
             }
         }
 
+    def test_refs_inside_extra_props(self, parametrized_replace_refs):
+        """This seems really dubious per the spec... but OpenAPI 3.1 spec does it."""
+        docs = {
+            "a.json": {
+                "file": "a",
+                "b": {"$ref": "b.json#/ba", "extra": {"$ref": "b.json#/bb"}},
+            },
+            "b.json": {"ba": {"a": 1}, "bb": {"b": 2}},
+        }
+        result = parametrized_replace_refs(docs["a.json"], loader=docs.get, merge_props=True)
+        assert result == {"file": "a", "b": {"a": 1, "extra": {"b": 2}}}
+
     def test_recursive_extra(self, parametrized_replace_refs):
         json = {"a": {"$ref": "#", "extra": "foo"}}
         result = parametrized_replace_refs(json, merge_props=True)
@@ -233,6 +245,16 @@ class TestJsonRef(object):
         loader = mock.Mock(return_value=json2)
         result = replace_refs(json1, base_uri="/json1", loader=loader)
         assert result["a"].__subject__ is result
+
+    def test_self_referent_reference(self, parametrized_replace_refs):
+        json = {"$ref": "#/sub", "sub": [1, 2]}
+        result = parametrized_replace_refs(json)
+        assert result == json["sub"]
+
+    def test_self_referent_reference_w_merge(self, parametrized_replace_refs):
+        json = {"$ref": "#/sub", "extra": "aoeu", "sub": {"main": "aoeu"}}
+        result = parametrized_replace_refs(json, merge_props=True)
+        assert result == {"main": "aoeu", "extra": "aoeu", "sub": {"main": "aoeu"}}
 
     def test_custom_loader(self):
         data = {"$ref": "foo"}

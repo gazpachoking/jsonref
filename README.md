@@ -7,7 +7,7 @@
 
 `jsonref` is a library for automatic dereferencing of [JSON
 Reference](https://datatracker.ietf.org/doc/html/draft-pbryan-zyp-json-ref-03)
-objects for Python (supporting Python 3.3+).
+objects for Python (supporting Python 3.7+).
 
 This library lets you use a data structure with JSON reference objects,
 as if the references had been replaced with the referent data.
