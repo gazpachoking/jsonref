@@ -23,8 +23,8 @@ version = { source = "file", path = "jsonref.py" }
 includes = ["jsonref.py", "proxytypes.py"]
 
 [build-system]
-requires = ["pdm-pep517>=1.0.0"]
-build-backend = "pdm.pep517.api"
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
 
 [tool.isort]
 profile = "black"
