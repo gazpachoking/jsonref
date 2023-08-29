@@ -25,13 +25,13 @@ as if the references had been replaced with the referent data.
 
 # Features
 
--   References are evaluated lazily. Nothing is dereferenced until it is
+-   References are (optionally) evaluated lazily. Nothing is dereferenced until it is
     used.
 -   Recursive references are supported, and create recursive python data
     structures.
 
-References objects are actually replaced by lazy lookup proxy objects
-which are almost completely transparent.
+References objects are replaced by lazy lookup proxy objects to support lazy 
+dereferencing. They are almost completely transparent.
 
 ```python console
 >>> data = jsonref.loads('{"real": [1, 2, 3, 4], "ref": {"$ref": "#/real"}}')
