@@ -5,7 +5,8 @@ from collections.abc import Mapping, MutableMapping, Sequence
 from urllib import parse as urlparse
 from urllib.parse import unquote
 from urllib.request import urlopen
-from . import proxytypes
+from . import proxytypes  # noqa: F401
+from .proxytypes import LazyProxy
 
 try:
     # If requests >=1.0 is available, we will use it
@@ -35,7 +36,7 @@ class JsonRefError(Exception):
         return str(self.message)
 
 
-class JsonRef(proxytypes.LazyProxy):
+class JsonRef(LazyProxy):
     """
     A lazy loading proxy to the dereferenced data pointed to by a JSON
     Reference object.

@@ -5,7 +5,7 @@ from copy import deepcopy
 import pytest
 
 from jsonref import replace_refs
-from jsonref.proxytypes import CallbackProxy, LazyProxy, Proxy, notproxied  # noqa
+from jsonref.proxytypes import CallbackProxy, LazyProxy, Proxy, notproxied  # noqa: F401
 
 
 def cmp(a, b):
