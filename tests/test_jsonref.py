@@ -4,7 +4,6 @@ import json
 import operator
 from copy import deepcopy
 from unittest import mock
-
 import pytest
 
 from jsonref import (
@@ -18,7 +17,12 @@ from jsonref import (
     loads,
     replace_refs,
 )
-from proxytypes import CallbackProxy, LazyProxy, Proxy, notproxied
+from jsonref.proxytypes import (
+    CallbackProxy,
+    LazyProxy,
+    Proxy,
+    notproxied,
+)
 
 
 def cmp(a, b):
@@ -122,7 +126,9 @@ class TestJsonRef(object):
             },
             "b.json": {"ba": {"a": 1}, "bb": {"b": 2}},
         }
-        result = parametrized_replace_refs(docs["a.json"], loader=docs.get, merge_props=True)
+        result = parametrized_replace_refs(
+            docs["a.json"], loader=docs.get, merge_props=True
+        )
         assert result == {"file": "a", "b": {"a": 1, "extra": {"b": 2}}}
 
     def test_recursive_extra(self, parametrized_replace_refs):
