@@ -19,7 +19,8 @@ dev = ["pytest>=7.1.3", "flake8>=5.0.4", "black>=23.3.0"]
 version = { source = "file", path = "jsonref/__init__.py" }
 
 [tool.pdm.build]
-includes = ["jsonref/__init__.py", "jsonref/proxytypes.py"]
+includes = ["jsonref"]
+excludes = ["tests", "docs"]
 
 [build-system]
 requires = ["pdm-backend"]
