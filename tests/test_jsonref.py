@@ -17,7 +17,7 @@ from jsonref import (
     loads,
     replace_refs,
 )
-from jsonref.proxytypes import (
+from jsonref.proxytypes import (  # noqa
     CallbackProxy,
     LazyProxy,
     Proxy,
@@ -177,7 +177,7 @@ class TestJsonRef(object):
         }
         # Error should raise straight away without lazy loading
         with pytest.raises(JsonRefError):
-            result = replace_refs(json, lazy_load=False)
+            replace_refs(json, lazy_load=False)
 
     def test_no_lazy_load_recursive(self):
         json = {
@@ -186,7 +186,7 @@ class TestJsonRef(object):
         }
         # If resolution happens too early, the recursion won't work
         # Make sure we don't break recursion when we aren't being lazy
-        result = replace_refs(json, lazy_load=False)
+        replace_refs(json, lazy_load=False)
 
     def test_proxies(self):
         json = {
