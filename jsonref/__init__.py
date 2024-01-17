@@ -5,6 +5,7 @@ from collections.abc import Mapping, MutableMapping, Sequence
 from urllib import parse as urlparse
 from urllib.parse import unquote
 from urllib.request import urlopen
+from . import proxytypes
 
 try:
     # If requests >=1.0 is available, we will use it
@@ -14,8 +15,6 @@ try:
         requests = None
 except ImportError:
     requests = None
-
-from proxytypes import LazyProxy
 
 __version__ = "1.1.0"
 
@@ -36,7 +35,7 @@ class JsonRefError(Exception):
         return str(self.message)
 
 
-class JsonRef(LazyProxy):
+class JsonRef(proxytypes.LazyProxy):
     """
     A lazy loading proxy to the dereferenced data pointed to by a JSON
     Reference object.
@@ -350,7 +349,7 @@ def _replace_refs(
     merge_props,
     store,
     path,
-    recursing
+    recursing,
 ):
     base_uri, frag = urlparse.urldefrag(base_uri)
     store_uri = None  # If this does not get set, we won't store the result
@@ -424,7 +423,7 @@ def load(
     merge_props=False,
     proxies=True,
     lazy_load=True,
-    **kwargs
+    **kwargs,
 ):
     """
     Drop in replacement for :func:`json.load`, where JSON references are
@@ -461,7 +460,7 @@ def loads(
     merge_props=False,
     proxies=True,
     lazy_load=True,
-    **kwargs
+    **kwargs,
 ):
     """
     Drop in replacement for :func:`json.loads`, where JSON references are
