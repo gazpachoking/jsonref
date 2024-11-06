@@ -260,14 +260,21 @@ def jsonloader(uri, **kwargs):
 
 def _walk_refs(obj, func, replace=False, _processed=None):
     # Keep track of already processed items to prevent recursion
-    _processed = _processed or {}
+    if _processed is None:
+        _processed = {}
     oid = id(obj)
     if oid in _processed:
         return _processed[oid]
+
+    _processed[oid] = obj
+
     if type(obj) is JsonRef:
         r = func(obj)
-        obj = r if replace else obj
-    _processed[oid] = obj
+        if replace:
+            obj = r
+            oid = id(obj)
+            _processed[oid] = obj
+
     if isinstance(obj, Mapping):
         for k, v in obj.items():
             r = _walk_refs(v, func, replace=replace, _processed=_processed)
