@@ -127,7 +127,7 @@ class JsonRef(LazyProxy):
         if uri not in self.store:
             # Remote ref
             try:
-                base_doc = self.loader(uri)
+                base_doc = self.loader(uri, **self._ref_kwargs)
             except Exception as e:
                 raise self._error(
                     "%s: %s" % (e.__class__.__name__, str(e)), cause=e
