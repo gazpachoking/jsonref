@@ -7,6 +7,7 @@ from urllib.parse import unquote
 from urllib.request import urlopen
 from . import proxytypes  # noqa: F401
 from .proxytypes import LazyProxy
+import inspect
 
 try:
     # If requests >=1.0 is available, we will use it
