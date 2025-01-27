@@ -562,7 +562,7 @@ def dumps(obj, **kwargs):
 def _supports_kwargs(loader):
     sig = inspect.signature(loader)
     parameters = sig.parameters
-    if len(parameters) > 1 and parameters[1].kind == inspect.Parameter.VAR_KEYWORD:
+    if len(parameters) > 1 and list(parameters.values())[1].kind == inspect.Parameter.VAR_KEYWORD:
         return True
     return False
 
