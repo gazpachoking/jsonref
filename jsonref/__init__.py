@@ -353,7 +353,7 @@ def _replace_refs(
     merge_props,
     store,
     path,
-    recursing
+    recursing,
 ):
     base_uri, frag = urlparse.urldefrag(base_uri)
     store_uri = None  # If this does not get set, we won't store the result
