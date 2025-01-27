@@ -5,8 +5,6 @@ from collections.abc import Mapping, MutableMapping, Sequence
 from urllib import parse as urlparse
 from urllib.parse import unquote
 from urllib.request import urlopen
-from . import proxytypes  # noqa: F401
-from .proxytypes import LazyProxy
 
 try:
     # If requests >=1.0 is available, we will use it
@@ -16,6 +14,8 @@ try:
         requests = None
 except ImportError:
     requests = None
+
+from proxytypes import LazyProxy
 
 __version__ = "1.1.0"
 
@@ -127,7 +127,10 @@ class JsonRef(LazyProxy):
         if uri not in self.store:
             # Remote ref
             try:
-                base_doc = self.loader(uri, **self._ref_kwargs)
+                if _supports_kwargs(self.loader):
+                    base_doc = self.loader(uri, **self._ref_kwargs)
+                else:
+                    base_doc = self.loader(uri)
             except Exception as e:
                 raise self._error(
                     "%s: %s" % (e.__class__.__name__, str(e)), cause=e
@@ -350,7 +353,7 @@ def _replace_refs(
     merge_props,
     store,
     path,
-    recursing,
+    recursing
 ):
     base_uri, frag = urlparse.urldefrag(base_uri)
     store_uri = None  # If this does not get set, we won't store the result
@@ -424,7 +427,7 @@ def load(
     merge_props=False,
     proxies=True,
     lazy_load=True,
-    **kwargs,
+    **kwargs
 ):
     """
     Drop in replacement for :func:`json.load`, where JSON references are
@@ -461,7 +464,7 @@ def loads(
     merge_props=False,
     proxies=True,
     lazy_load=True,
-    **kwargs,
+    **kwargs
 ):
     """
     Drop in replacement for :func:`json.loads`, where JSON references are
@@ -555,6 +558,12 @@ def dumps(obj, **kwargs):
     kwargs["cls"] = _ref_encoder_factory(kwargs.get("cls", json.JSONEncoder))
     return json.dumps(obj, **kwargs)
 
+def _supports_kwargs(loader):
+    sig = inspect.signature(loader)
+    parameters = sig.parameters
+    if len(parameters) > 1 and parameters[1].kind == inspect.Parameter.VAR_KEYWORD:
+        return True
+    return False
 
 def _ref_encoder_factory(cls):
     class JSONRefEncoder(cls):
