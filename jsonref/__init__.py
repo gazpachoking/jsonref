@@ -5,6 +5,7 @@ from collections.abc import Mapping, MutableMapping, Sequence
 from urllib import parse as urlparse
 from urllib.parse import unquote
 from urllib.request import urlopen
+
 from . import proxytypes  # noqa: F401
 from .proxytypes import LazyProxy
 
@@ -261,13 +262,13 @@ def jsonloader(uri, **kwargs):
 def _walk_refs(obj, func, replace=False, _processed=None):
     # Keep track of already processed items to prevent recursion
     _processed = _processed or {}
-    oid = id(obj)
-    if oid in _processed:
-        return _processed[oid]
     if type(obj) is JsonRef:
+        oid = id(obj)
+        if oid in _processed:
+            return _processed[oid]
         r = func(obj)
         obj = r if replace else obj
-    _processed[oid] = obj
+        _processed[oid] = obj
     if isinstance(obj, Mapping):
         for k, v in obj.items():
             r = _walk_refs(v, func, replace=replace, _processed=_processed)
