@@ -8,6 +8,7 @@ from urllib.request import urlopen
 
 from . import proxytypes  # noqa: F401
 from .proxytypes import LazyProxy
+import inspect
 
 try:
     # If requests >=1.0 is available, we will use it
@@ -128,7 +129,10 @@ class JsonRef(LazyProxy):
         if uri not in self.store:
             # Remote ref
             try:
-                base_doc = self.loader(uri)
+                if _supports_kwargs(self.loader):
+                    base_doc = self.loader(uri, **self._ref_kwargs)
+                else:
+                    base_doc = self.loader(uri)
             except Exception as e:
                 raise self._error(
                     "%s: %s" % (e.__class__.__name__, str(e)), cause=e
@@ -556,6 +560,12 @@ def dumps(obj, **kwargs):
     kwargs["cls"] = _ref_encoder_factory(kwargs.get("cls", json.JSONEncoder))
     return json.dumps(obj, **kwargs)
 
+def _supports_kwargs(loader):
+    sig = inspect.signature(loader)
+    parameters = sig.parameters
+    if len(parameters) > 1 and list(parameters.values())[1].kind == inspect.Parameter.VAR_KEYWORD:
+        return True
+    return False
 
 def _ref_encoder_factory(cls):
     class JSONRefEncoder(cls):
