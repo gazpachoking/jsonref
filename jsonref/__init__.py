@@ -119,7 +119,13 @@ class JsonRef(LazyProxy):
 
     @property
     def full_uri(self):
-        return urlparse.urljoin(self.base_uri, self.__reference__["$ref"])
+        if self.base_uri.startswith("urn:"):
+            if self.__reference__["$ref"].startswith("urn:"):
+                return self.__reference__["$ref"]
+            else:
+                return f"{self.base_uri}{self.__reference__['$ref']}"
+        else:
+            return urlparse.urljoin(self.base_uri, self.__reference__["$ref"])
 
     def callback(self):
         uri, fragment = urlparse.urldefrag(self.full_uri)
