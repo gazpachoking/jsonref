@@ -558,6 +558,24 @@ def dumps(obj, **kwargs):
 
 
 def _ref_encoder_factory(cls):
+    def _deref(obj):
+        """Recursively replace JsonRef proxies with their __reference__ dict.
+
+        Required for the indent!=None path: CPython switches from the C encoder
+        to pure-Python _make_iterencode when indent is set.  That fallback uses
+        Python-level isinstance(value, str) which is True for any
+        lazy_object_proxy.Proxy, but then passes the proxy to C-level
+        encode_basestring which rejects it with TypeError.  Pre-processing the
+        tree before encoding avoids the proxy entirely.
+        """
+        if hasattr(obj, "__reference__"):
+            return obj.__reference__
+        if isinstance(obj, dict):
+            return {k: _deref(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_deref(v) for v in obj]
+        return obj
+
     class JSONRefEncoder(cls):
         def default(self, o):
             if hasattr(o, "__reference__"):
@@ -575,5 +593,8 @@ def _ref_encoder_factory(cls):
             if hasattr(o, "__reference__"):
                 o = o.__reference__
             return super(JSONRefEncoder, self)._encode(o, *args, **kwargs)
+
+        def iterencode(self, o, _one_shot=False):
+            return super(JSONRefEncoder, self).iterencode(_deref(o), _one_shot)
 
     return JSONRefEncoder
