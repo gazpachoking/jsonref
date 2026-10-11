@@ -162,7 +162,9 @@ class JsonRef(LazyProxy):
         :argument str pointer: a json pointer URI fragment to resolve within it
 
         """
-        parts = unquote(pointer.lstrip("/")).split("/") if pointer else []
+        parts = unquote(pointer).split("/") if pointer else []
+        if parts and parts[0] == "":
+            parts = parts[1:]
 
         for part in parts:
             part = part.replace("~1", "/").replace("~0", "~")

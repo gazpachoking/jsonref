@@ -48,6 +48,20 @@ class TestJsonRef(object):
         json = {"a/~a": ["resolved"], "b": {"$ref": "#/a~1~0a"}}
         assert parametrized_replace_refs(json)["b"] == json["a/~a"]
 
+    @pytest.mark.parametrize(
+        "document,pointer",
+        [
+            ({"": {"value": "resolved"}}, "//value"),
+            ({"": {"": {"value": "resolved"}}}, "///value"),
+            ({"value": "resolved"}, "%2Fvalue"),
+        ],
+    )
+    def test_local_empty_pointer_segments(
+        self, parametrized_replace_refs, document, pointer
+    ):
+        document["ref"] = {"$ref": "#" + pointer}
+        assert parametrized_replace_refs(document)["ref"] == "resolved"
+
     def test_local_nonexistent_ref(self):
         json = {
             "data": [1, 2],
