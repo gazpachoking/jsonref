@@ -32,3 +32,53 @@ class TestApi(object):
         dump(loaded, tmpdir.join("out.json"))
         # Our dump function should write the original reference
         assert tmpdir.join("out.json").read() == json
+
+
+class TestCustomEncoder:
+    def test_custom_default_receives_encoder_instance(self):
+        import json
+
+        class Value:
+            pass
+
+        class CustomEncoder(json.JSONEncoder):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.prefix = "encoded"
+
+            def default(self, value):
+                if isinstance(value, Value):
+                    return self.prefix
+                return super().default(value)
+
+        assert dumps(Value(), cls=CustomEncoder) == '"encoded"'
+        assert dumps({"value": Value()}, cls=CustomEncoder) == '{"value": "encoded"}'
+
+    def test_custom_encoder_fallback_preserves_references(self):
+        import json
+        from io import StringIO
+
+        class Value:
+            pass
+
+        class CustomEncoder(json.JSONEncoder):
+            def default(self, value):
+                if isinstance(value, Value):
+                    return "encoded"
+                return super().default(value)
+
+        document = loads('{"original": 1, "reference": {"$ref": "#/original"}}')
+        document["custom"] = Value()
+        output = StringIO()
+        dump(document, output, cls=CustomEncoder)
+        assert json.loads(output.getvalue()) == {
+            "original": 1,
+            "reference": {"$ref": "#/original"},
+            "custom": "encoded",
+        }
+
+    def test_standard_encoder_rejects_unsupported_values_normally(self):
+        import pytest
+
+        with pytest.raises(TypeError, match="not JSON serializable"):
+            dumps(object())

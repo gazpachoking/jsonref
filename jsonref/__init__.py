@@ -562,7 +562,7 @@ def _ref_encoder_factory(cls):
         def default(self, o):
             if hasattr(o, "__reference__"):
                 return o.__reference__
-            return super(JSONRefEncoder, cls).default(o)
+            return super(JSONRefEncoder, self).default(o)
 
         # Python 2.6 doesn't work with the default method
         def _iterencode(self, o, *args, **kwargs):
