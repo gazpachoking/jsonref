@@ -44,6 +44,36 @@ class TestJsonRef(object):
         json = {"a": [5, 15], "b": {"$ref": "#/a/1"}}
         assert parametrized_replace_refs(json)["b"] == json["a"][1]
 
+    @pytest.mark.parametrize(
+        "token",
+        ["-1", "-0", "+1", "00", "01", " 1", "1 ", "1_0", "١", "１", "-", "1.0"],
+    )
+    def test_invalid_array_index(self, parametrized_replace_refs, token):
+        document = {"values": list(range(12)), "ref": {"$ref": "#/values/" + token}}
+        with pytest.raises(JsonRefError, match="Unresolvable JSON pointer"):
+            result = parametrized_replace_refs(document)
+            # Force resolution in lazy mode as well.
+            str(result["ref"])
+
+    def test_oversized_array_index(self, parametrized_replace_refs):
+        document = {"values": [0], "ref": {"$ref": "#/values/" + "9" * 5000}}
+        with pytest.raises(JsonRefError, match="Unresolvable JSON pointer"):
+            result = parametrized_replace_refs(document)
+            str(result["ref"])
+
+    @pytest.mark.parametrize("token", ["0", "1", "10"])
+    def test_valid_array_index(self, parametrized_replace_refs, token):
+        document = {"values": list(range(12)), "ref": {"$ref": "#/values/" + token}}
+        assert parametrized_replace_refs(document)["ref"] == int(token)
+
+    @pytest.mark.parametrize(
+        "token",
+        ["-1", "-0", "+1", "00", "01", " 1", "1 ", "1_0", "١", "１", "-", "1.0"],
+    )
+    def test_index_like_object_key(self, parametrized_replace_refs, token):
+        document = {"values": {token: "target"}, "ref": {"$ref": "#/values/" + token}}
+        assert parametrized_replace_refs(document)["ref"] == "target"
+
     def test_local_escaped_ref(self, parametrized_replace_refs):
         json = {"a/~a": ["resolved"], "b": {"$ref": "#/a~1~0a"}}
         assert parametrized_replace_refs(json)["b"] == json["a/~a"]
