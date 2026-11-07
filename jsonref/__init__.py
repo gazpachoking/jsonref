@@ -1,5 +1,6 @@
 import functools
 import json
+import re
 import warnings
 from collections.abc import Mapping, MutableMapping, Sequence
 from urllib import parse as urlparse
@@ -168,11 +169,12 @@ class JsonRef(LazyProxy):
             part = part.replace("~1", "/").replace("~0", "~")
 
             if isinstance(document, Sequence):
-                # Try to turn an array index to an int
-                try:
-                    part = int(part)
-                except ValueError:
-                    pass
+                # RFC 6901 array indices are ASCII digits without leading zeros.
+                if re.fullmatch(r"0|[1-9][0-9]*", part):
+                    try:
+                        part = int(part)
+                    except ValueError:
+                        pass
             # If a reference points inside itself, it must mean inside reference object, not the referent data
             if document is self:
                 document = self.__reference__
